@@ -1,0 +1,44 @@
+[
+    {
+        "userId": 1,
+        "username": "admin",
+        "password": "admin123",
+        "role": "Admin",
+        "fullName": "System Administrator",
+        "email": "admin@sunday-school.com",
+        "phone": "123-456-7890",
+        "profilePhoto": "",
+        "isActive": true,
+        "lastLogin": null,
+        "createdAt": "2026-01-01T00:00:00Z",
+        "createdBy": 1
+    },
+    {
+        "userId": 2,
+        "username": "amin1",
+        "password": "amin123",
+        "role": "Amin",
+        "fullName": "John Amin",
+        "email": "amin@sunday-school.com",
+        "phone": "123-456-7891",
+        "profilePhoto": "",
+        "isActive": true,
+        "lastLogin": null,
+        "createdAt": "2026-01-01T00:00:00Z",
+        "createdBy": 1
+    },
+    {
+        "userId": 3,
+        "username": "khadem1",
+        "password": "khadem123",
+        "role": "Khadem",
+        "fullName": "Mary Khadem",
+        "email": "khadem@sunday-school.com",
+        "phone": "123-456-7892",
+        "profilePhoto": "",
+        "isActive": true,
+        "lastLogin": null,
+        "createdAt": "2026-01-01T00:00:00Z",
+        "createdBy": 1
+    }
+]

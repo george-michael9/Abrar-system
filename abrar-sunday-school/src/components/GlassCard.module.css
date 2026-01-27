@@ -1,0 +1,33 @@
+.glassCard {
+    background: var(--color-glass-white);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: var(--glass-border-width) solid var(--color-glass-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-glass);
+    transition: all var(--transition-base);
+}
+
+.glassCard.hover:hover {
+    background: var(--color-glass-hover);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    cursor: pointer;
+}
+
+.paddingNone {
+    padding: 0;
+}
+
+.paddingSm {
+    padding: var(--spacing-md);
+}
+
+.paddingDefault {
+    padding: var(--spacing-lg);
+}
+
+.paddingLg {
+    padding: var(--spacing-xl);
+}

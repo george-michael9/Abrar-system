@@ -1,0 +1,49 @@
+[
+    {
+        "classId": 1,
+        "className": "Pre-School Angels",
+        "description": "Ages 4-5",
+        "ageGroup": "4-5",
+        "category": "Pre-School",
+        "teamId": 1,
+        "scheduleDay": "Sunday",
+        "scheduleTime": "9:00 AM",
+        "location": "Room 101",
+        "isActive": true,
+        "createdAt": "2026-01-01T00:00:00Z",
+        "createdBy": 1,
+        "khadems": [
+            3
+        ]
+    },
+    {
+        "classId": 2,
+        "className": "Elementary Disciples",
+        "description": "Ages 6-8",
+        "ageGroup": "6-8",
+        "category": "Elementary",
+        "teamId": 2,
+        "scheduleDay": "Sunday",
+        "scheduleTime": "10:00 AM",
+        "location": "Room 102",
+        "isActive": true,
+        "createdAt": "2026-01-01T00:00:00Z",
+        "createdBy": 1,
+        "khadems": []
+    },
+    {
+        "classId": 3,
+        "className": "Youth Warriors",
+        "description": "Ages 9-12",
+        "ageGroup": "9-12",
+        "category": "Youth",
+        "teamId": 3,
+        "scheduleDay": "Sunday",
+        "scheduleTime": "11:00 AM",
+        "location": "Room 103",
+        "isActive": true,
+        "createdAt": "2026-01-01T00:00:00Z",
+        "createdBy": 1,
+        "khadems": []
+    }
+]

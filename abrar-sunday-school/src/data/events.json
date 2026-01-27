@@ -1,0 +1,38 @@
+[
+    {
+        "eventId": 1,
+        "eventName": "Summer Camp 2026",
+        "eventType": "Camp",
+        "description": "Annual summer camp for all age groups",
+        "startDate": "2026-07-01",
+        "endDate": "2026-07-05",
+        "startTime": "09:00",
+        "endTime": "16:00",
+        "location": "Camp Bethel",
+        "address": "123 Forest Road, Mountain View",
+        "managerId": 2,
+        "status": "upcoming",
+        "maxCapacity": 100,
+        "registrationDeadline": "2026-06-15",
+        "createdAt": "2026-01-01T00:00:00Z",
+        "createdBy": 1
+    },
+    {
+        "eventId": 2,
+        "eventName": "Easter Celebration",
+        "eventType": "Activity",
+        "description": "Easter celebration with activities and lessons",
+        "startDate": "2026-04-12",
+        "endDate": "2026-04-12",
+        "startTime": "14:00",
+        "endTime": "18:00",
+        "location": "Church Hall",
+        "address": "Main Church Building",
+        "managerId": 2,
+        "status": "upcoming",
+        "maxCapacity": 150,
+        "registrationDeadline": "2026-04-05",
+        "createdAt": "2026-01-01T00:00:00Z",
+        "createdBy": 1
+    }
+]
