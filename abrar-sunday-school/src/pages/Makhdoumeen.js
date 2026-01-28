@@ -6,6 +6,7 @@ import GlassCard from '../components/GlassCard';
 import GlassButton from '../components/GlassButton';
 import GlassInput from '../components/GlassInput';
 import Modal from '../components/Modal';
+import QRCodeDisplay from '../components/QRCodeDisplay';
 import styles from './Makhdoumeen.module.css';
 
 const Makhdoumeen = () => {
@@ -14,6 +15,8 @@ const Makhdoumeen = () => {
     const [makhdoumeen, setMakhdoumeen] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+    const [selectedMakhdoum, setSelectedMakhdoum] = useState(null);
     const [editingMakhdoum, setEditingMakhdoum] = useState(null);
     const [formData, setFormData] = useState({
         fullName: '',
@@ -59,8 +62,8 @@ const Makhdoumeen = () => {
 
     const filteredMakhdoumeen = makhdoumeen.filter(m =>
         m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        m.makhdoumCode.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+        m.makhdoumCode.toLowerCase().includes(searchTerm.toLowerCase()
+        ));
 
     const handleOpenModal = (makhdoum = null) => {
         if (makhdoum) {
@@ -91,7 +94,7 @@ const Makhdoumeen = () => {
                 fullName: '',
                 dateOfBirth: '',
                 gender: 'Male',
-                classId: allClasses.length > 0 ? allClasses[0].classId : '',
+                classId: isKhadem() ? (user.classId || (allClasses.length > 0 ? allClasses[0].classId : '')) : (allClasses.length > 0 ? allClasses[0].classId : ''),
                 motherName: '',
                 motherPhone: '',
                 fatherName: '',
@@ -114,6 +117,16 @@ const Makhdoumeen = () => {
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setEditingMakhdoum(null);
+    };
+
+    const handleOpenQRModal = (makhdoum) => {
+        setSelectedMakhdoum(makhdoum);
+        setIsQRModalOpen(true);
+    };
+
+    const handleCloseQRModal = () => {
+        setIsQRModalOpen(false);
+        setSelectedMakhdoum(null);
     };
 
     const handleInputChange = (e) => {
@@ -219,8 +232,16 @@ const Makhdoumeen = () => {
                                     <GlassButton
                                         variant="ghost"
                                         size="sm"
-                                        fullWidth
+                                        onClick={() => handleOpenQRModal(makhdoum)}
+                                        className={styles.actionBtn}
+                                    >
+                                        📱 QR Code
+                                    </GlassButton>
+                                    <GlassButton
+                                        variant="ghost"
+                                        size="sm"
                                         onClick={() => handleOpenModal(makhdoum)}
+                                        className={styles.actionBtn}
                                     >
                                         ✏️ Edit
                                     </GlassButton>
@@ -238,6 +259,27 @@ const Makhdoumeen = () => {
                 )}
             </div>
 
+            {/* QR Code Modal */}
+            <Modal
+                isOpen={isQRModalOpen}
+                onClose={handleCloseQRModal}
+                title={`QR Code - ${selectedMakhdoum?.fullName}`}
+            >
+                {selectedMakhdoum && (
+                    <div className={styles.qrModalContent}>
+                        <QRCodeDisplay
+                            data={`${selectedMakhdoum.makhdoumCode}:${selectedMakhdoum.makhdoumId}`}
+                            size={300}
+                        />
+                        <div className={styles.qrInfo}>
+                            <p className={styles.qrText}>Scan this QR code for attendance and scoring</p>
+                            <p className={styles.qrCode}>{selectedMakhdoum.makhdoumCode}</p>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Edit/Add Modal */}
             <Modal
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
@@ -279,6 +321,7 @@ const Makhdoumeen = () => {
                                 onChange={handleInputChange}
                                 className={styles.select}
                                 required
+                                disabled={isKhadem()}
                             >
                                 {allClasses.map(cls => (
                                     <option key={cls.classId} value={cls.classId}>
@@ -389,7 +432,7 @@ const Makhdoumeen = () => {
                     </div>
                 </form>
             </Modal>
-        </div>
+        </div >
     );
 };
 

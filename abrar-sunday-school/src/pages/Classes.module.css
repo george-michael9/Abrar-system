@@ -47,58 +47,120 @@
 }
 
 .toolbar {
+    margin-bottom: var(--spacing-2xl);
+    display: flex;
+    justify-content: flex-start;
+}
+
+.filterGroup {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    min-width: 300px;
+}
+
+.label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.select {
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--font-size-base);
+    font-family: var(--font-family-primary);
+    color: var(--color-text-primary);
+    background: var(--color-glass-white);
+    backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--color-glass-border);
+    border-radius: var(--radius-lg);
+    outline: none;
+    cursor: pointer;
+}
+
+.teamSection {
+    margin-bottom: var(--spacing-3xl);
+    animation: fadeIn 0.6s ease-out;
+}
+
+.teamHeader {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
     margin-bottom: var(--spacing-xl);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 2px solid var(--color-glass-border);
+}
+
+.teamIcon {
+    width: 60px;
+    height: 60px;
+    border-radius: var(--radius-xl);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    box-shadow: var(--shadow-lg);
+}
+
+.teamName {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    margin: 0;
+}
+
+.teamMotto {
+    color: var(--color-text-secondary);
+    font-style: italic;
+    font-size: var(--font-size-sm);
 }
 
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
     gap: var(--spacing-lg);
-    animation: fadeIn 0.6s ease-out;
 }
 
 .card {
     padding: var(--spacing-xl) !important;
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
 }
 
 .cardHeader {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: var(--spacing-md);
 }
 
 .icon {
-    width: 60px;
-    height: 60px;
-    border-radius: var(--radius-xl);
-    background: linear-gradient(135deg, var(--color-secondary-purple), var(--color-accent-magenta));
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    background: var(--color-glass-white);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2rem;
-    box-shadow: var(--glow-secondary);
+    font-size: 1.5rem;
 }
 
-.teamBadge {
+.ageBadge {
     padding: var(--spacing-xs) var(--spacing-md);
+    background: var(--color-glass-white);
     border-radius: var(--radius-full);
     font-size: var(--font-size-xs);
     font-weight: 600;
-    color: white;
 }
 
 .className {
     font-size: var(--font-size-xl);
     font-weight: 700;
-    margin: 0;
+    margin: 0 0 var(--spacing-xs) 0;
 }
 
 .description {
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-md);
 }
 
 .details {
@@ -106,8 +168,7 @@
     flex-direction: column;
     gap: var(--spacing-xs);
     padding: var(--spacing-md);
-    background: var(--color-glass-white);
-    border: 1px solid var(--color-glass-border);
+    background: rgba(255, 255, 255, 0.02);
     border-radius: var(--radius-md);
 }
 
@@ -119,10 +180,26 @@
     color: var(--color-text-secondary);
 }
 
+.empty {
+    text-align: center;
+    padding: var(--spacing-3xl);
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
 @media (max-width: 768px) {
     .headerContent {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .toolbar {
+        width: 100%;
+    }
+
+    .filterGroup {
+        width: 100%;
+        min-width: unset;
     }
 
     .grid {

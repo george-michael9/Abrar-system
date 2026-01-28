@@ -1,25 +1,73 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getClasses, getTeams, getClassById, getTeamById } from '../services/mockApi';
+import { getClasses, getEvents, getTeamsByEvent, getClassById } from '../services/mockApi';
 import GlassCard from '../components/GlassCard';
 import GlassButton from '../components/GlassButton';
 import styles from './Classes.module.css';
 
 const Classes = () => {
-    const { user, logout } = useAuth();
+    const { logout } = useAuth();
     const navigate = useNavigate();
     const [classes, setClasses] = useState([]);
+    const [events, setEvents] = useState([]);
+    const [selectedEventId, setSelectedEventId] = useState('');
+    const [teams, setTeams] = useState([]);
 
     useEffect(() => {
-        loadClasses();
-        // eslint-disable-next-line
+        setEvents(getEvents());
+        setClasses(getClasses());
     }, []);
 
-    const loadClasses = () => {
-        const allClasses = getClasses();
-        setClasses(allClasses);
-    };
+    useEffect(() => {
+        if (selectedEventId) {
+            setTeams(getTeamsByEvent(parseInt(selectedEventId)));
+        } else {
+            setTeams([]);
+        }
+    }, [selectedEventId]);
+
+    const TeamGroup = ({ team }) => (
+        <section className={styles.teamSection}>
+            <div className={styles.teamHeader}>
+                <div className={styles.teamIcon} style={{ background: team.primaryColor }}>
+                    {team.icon}
+                </div>
+                <div>
+                    <h2 className={styles.teamName}>{team.teamName}</h2>
+                    <p className={styles.teamMotto}>{team.motto}</p>
+                </div>
+            </div>
+            <div className={styles.grid}>
+                {team.classIds.map(classId => {
+                    const cls = getClassById(classId);
+                    if (!cls) return null;
+                    return <ClassCard key={cls.classId} cls={cls} />;
+                })}
+            </div>
+        </section>
+    );
+
+    const ClassCard = ({ cls }) => (
+        <GlassCard className={styles.card}>
+            <div className={styles.cardHeader}>
+                <div className={styles.icon}>📚</div>
+                <div className={styles.ageBadge}>{cls.ageGroup}</div>
+            </div>
+            <h3 className={styles.className}>{cls.className}</h3>
+            <p className={styles.description}>{cls.description}</p>
+            <div className={styles.details}>
+                <div className={styles.detail}>
+                    <span>📅</span>
+                    {cls.scheduleDay} - {cls.scheduleTime}
+                </div>
+                <div className={styles.detail}>
+                    <span>📍</span>
+                    {cls.location}
+                </div>
+            </div>
+        </GlassCard>
+    );
 
     return (
         <div className={styles.page}>
@@ -27,9 +75,9 @@ const Classes = () => {
                 <div className={styles.headerContent}>
                     <div>
                         <h1 className={styles.pageTitle}>
-                            <span className="text-gradient">Classes</span>
+                            <span className="text-gradient">Classes & Teams</span>
                         </h1>
-                        <p className={styles.pageSubtitle}>Manage Sunday School classes</p>
+                        <p className={styles.pageSubtitle}>Manage class groupings for events</p>
                     </div>
                     <div className={styles.headerActions}>
                         <GlassButton variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
@@ -44,47 +92,40 @@ const Classes = () => {
 
             <div className={styles.container}>
                 <div className={styles.toolbar}>
-                    <GlassButton variant="primary" onClick={() => alert('Add New Class - Feature coming soon!')}>
-                        ➕ Add New Class
-                    </GlassButton>
+                    <div className={styles.filterGroup}>
+                        <label className={styles.label}>View by Event:</label>
+                        <select
+                            className={styles.select}
+                            value={selectedEventId}
+                            onChange={(e) => setSelectedEventId(e.target.value)}
+                        >
+                            <option value="">All Classes (Static)</option>
+                            {events.map(event => (
+                                <option key={event.eventId} value={event.eventId}>
+                                    {event.eventName}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
-                <div className={styles.grid}>
-                    {classes.map(cls => {
-                        const team = getTeamById(cls.teamId);
-                        return (
-                            <GlassCard key={cls.classId} className={styles.card}>
-                                <div className={styles.cardHeader}>
-                                    <div className={styles.icon}>📚</div>
-                                    {team && (
-                                        <div className={styles.teamBadge} style={{
-                                            background: team.primaryColor,
-                                            boxShadow: `0 0 15px ${team.primaryColor}50`
-                                        }}>
-                                            {team.icon} {team.teamName}
-                                        </div>
-                                    )}
-                                </div>
-                                <h3 className={styles.className}>{cls.className}</h3>
-                                <p className={styles.description}>{cls.description}</p>
-                                <div className={styles.details}>
-                                    <div className={styles.detail}>
-                                        <span>👶</span>
-                                        Age: {cls.ageGroup}
-                                    </div>
-                                    <div className={styles.detail}>
-                                        <span>📅</span>
-                                        {cls.scheduleDay} - {cls.scheduleTime}
-                                    </div>
-                                    <div className={styles.detail}>
-                                        <span>📍</span>
-                                        {cls.location}
-                                    </div>
-                                </div>
-                            </GlassCard>
-                        );
-                    })}
-                </div>
+                {selectedEventId ? (
+                    <div className={styles.teamsList}>
+                        {teams.length > 0 ? (
+                            teams.map(team => (
+                                <TeamGroup key={team.teamId} team={team} />
+                            ))
+                        ) : (
+                            <p className={styles.empty}>No teams defined for this event.</p>
+                        )}
+                    </div>
+                ) : (
+                    <div className={styles.grid}>
+                        {classes.map(cls => (
+                            <ClassCard key={cls.classId} cls={cls} />
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -1,0 +1,14 @@
+.qrContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--spacing-md);
+    background: var(--color-glass-white);
+    border: 1px solid var(--color-glass-border);
+    border-radius: var(--radius-lg);
+}
+
+.qrCanvas {
+    display: block;
+    border-radius: var(--radius-md);
+}

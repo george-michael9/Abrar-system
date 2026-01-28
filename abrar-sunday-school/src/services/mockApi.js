@@ -41,16 +41,16 @@ const setData = (key, data) => {
 export const login = (username, password) => {
   const users = getData('users');
   const user = users.find(u => u.username === username && u.password === password);
-  
+
   if (user) {
     // Update last login
-    const updatedUsers = users.map(u => 
-      u.userId === user.userId 
+    const updatedUsers = users.map(u =>
+      u.userId === user.userId
         ? { ...u, lastLogin: new Date().toISOString() }
         : u
     );
     setData('users', updatedUsers);
-    
+
     // Return user without password
     const { password: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
@@ -96,7 +96,14 @@ export const getClassById = (classId) => {
 };
 
 export const getClassesByKhadem = (userId) => {
+  const users = getData('users');
+  const user = users.find(u => u.userId === userId);
   const classes = getData('classes');
+
+  if (user && user.classId) {
+    return classes.filter(c => c.classId === user.classId);
+  }
+
   return classes.filter(c => c.khadems && c.khadems.includes(userId));
 };
 
@@ -137,10 +144,10 @@ export const getMakhdoumeenByClass = (classId) => {
 
 export const createMakhdoum = (makhdoumData) => {
   const makhdoumeen = getData('makhdoumeen');
-  const lastCode = makhdoumeen.length > 0 
+  const lastCode = makhdoumeen.length > 0
     ? Math.max(...makhdoumeen.map(m => parseInt(m.makhdoumCode.split('-')[1])))
     : 0;
-  
+
   const newMakhdoum = {
     ...makhdoumData,
     makhdoumId: Math.max(...makhdoumeen.map(m => m.makhdoumId), 0) + 1,
@@ -164,9 +171,19 @@ export const updateMakhdoum = (makhdoumId, makhdoumData) => {
 // Team functions
 export const getTeams = () => getData('teams');
 
+export const getTeamsByEvent = (eventId) => {
+  const teams = getData('teams');
+  return teams.filter(t => t.eventId === eventId);
+};
+
 export const getTeamById = (teamId) => {
   const teams = getData('teams');
   return teams.find(t => t.teamId === teamId);
+};
+
+export const getTeamByClassAndEvent = (classId, eventId) => {
+  const teams = getData('teams');
+  return teams.find(t => t.eventId === eventId && t.classIds && t.classIds.includes(classId));
 };
 
 export const createTeam = (teamData) => {
@@ -215,7 +232,7 @@ export const getStatistics = () => {
   const classes = getData('classes');
   const makhdoumeen = getData('makhdoumeen');
   const events = getData('events');
-  
+
   return {
     totalUsers: users.filter(u => u.isActive).length,
     totalClasses: classes.filter(c => c.isActive).length,

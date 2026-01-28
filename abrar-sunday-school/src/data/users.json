@@ -25,7 +25,11 @@
         "isActive": true,
         "lastLogin": null,
         "createdAt": "2026-01-01T00:00:00Z",
-        "createdBy": 1
+        "createdBy": 1,
+        "managedEventIds": [
+            1,
+            2
+        ]
     },
     {
         "userId": 3,
@@ -39,6 +43,7 @@
         "isActive": true,
         "lastLogin": null,
         "createdAt": "2026-01-01T00:00:00Z",
-        "createdBy": 1
+        "createdBy": 1,
+        "classId": 1
     }
 ]

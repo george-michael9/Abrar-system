@@ -1,31 +1,46 @@
 [
     {
         "teamId": 1,
+        "eventId": 1,
         "teamName": "Red Team",
         "primaryColor": "#EF4444",
         "secondaryColor": "#DC2626",
         "icon": "🔴",
         "motto": "Strength and Courage",
+        "classIds": [
+            1,
+            2
+        ],
         "createdAt": "2026-01-01T00:00:00Z",
         "createdBy": 1
     },
     {
         "teamId": 2,
+        "eventId": 1,
         "teamName": "Blue Team",
         "primaryColor": "#3B82F6",
         "secondaryColor": "#2563EB",
         "icon": "🔵",
         "motto": "Wisdom and Faith",
+        "classIds": [
+            3
+        ],
         "createdAt": "2026-01-01T00:00:00Z",
         "createdBy": 1
     },
     {
         "teamId": 3,
+        "eventId": 2,
         "teamName": "Green Team",
         "primaryColor": "#10B981",
         "secondaryColor": "#059669",
         "icon": "🟢",
         "motto": "Growth and Hope",
+        "classIds": [
+            1,
+            2,
+            3
+        ],
         "createdAt": "2026-01-01T00:00:00Z",
         "createdBy": 1
     }

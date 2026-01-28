@@ -7,6 +7,7 @@ import Makhdoumeen from './pages/Makhdoumeen';
 import Classes from './pages/Classes';
 import Events from './pages/Events';
 import Users from './pages/Users';
+import Scanner from './pages/Scanner';
 import './styles/globals.css';
 
 // Protected Route component
@@ -76,6 +77,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Users />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/scanner"
+        element={
+          <ProtectedRoute>
+            <Scanner />
           </ProtectedRoute>
         }
       />

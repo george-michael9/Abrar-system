@@ -135,7 +135,6 @@ const Dashboard = () => {
                     </div>
                 </section>
 
-                {/* Quick Actions */}
                 <section className={styles.section}>
                     <h2 className={styles.sectionTitle}>Quick Actions</h2>
                     <div className={styles.quickActionsGrid}>
@@ -155,6 +154,11 @@ const Dashboard = () => {
                                     icon="📅"
                                     label="View Events"
                                     onClick={() => navigate('/events')}
+                                />
+                                <QuickActionButton
+                                    icon="📷"
+                                    label="QR Scanner"
+                                    onClick={() => navigate('/scanner')}
                                 />
                                 {isAdmin() && (
                                     <QuickActionButton
@@ -176,6 +180,11 @@ const Dashboard = () => {
                                     icon="📚"
                                     label="My Classes"
                                     onClick={() => navigate('/classes')}
+                                />
+                                <QuickActionButton
+                                    icon="📷"
+                                    label="QR Scanner"
+                                    onClick={() => navigate('/scanner')}
                                 />
                             </>
                         )}
