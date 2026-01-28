@@ -22,7 +22,7 @@
         "email": "amin@sunday-school.com",
         "phone": "123-456-7891",
         "profilePhoto": "",
-        "isActive": true,
+        "isActive": false,
         "lastLogin": null,
         "createdAt": "2026-01-01T00:00:00Z",
         "createdBy": 1,

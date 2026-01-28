@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import styles from './QRCodeDisplay.module.css';
 
-const QRCodeDisplay = ({ data, size = 200 }) => {
+const QRCodeDisplay = ({ data, size = 200, id }) => {
     const canvasRef = useRef(null);
 
     useEffect(() => {
@@ -20,7 +20,7 @@ const QRCodeDisplay = ({ data, size = 200 }) => {
 
     return (
         <div className={styles.qrContainer}>
-            <canvas ref={canvasRef} className={styles.qrCanvas} />
+            <canvas ref={canvasRef} id={id} className={styles.qrCanvas} />
         </div>
     );
 };

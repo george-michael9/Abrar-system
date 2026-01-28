@@ -1,20 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getEvents } from '../services/mockApi';
+import { getEvents, createEvent, updateEvent, deleteEvent } from '../services/mockApi';
 import GlassCard from '../components/GlassCard';
 import GlassButton from '../components/GlassButton';
+import GlassInput from '../components/GlassInput';
+import Modal from '../components/Modal';
 import styles from './Events.module.css';
 
 const Events = () => {
-    const { logout } = useAuth();
+    const { logout, isAdmin } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const [events, setEvents] = useState([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [selectedEventId, setSelectedEventId] = useState(null);
+    const [newEvent, setNewEvent] = useState({
+        eventName: '',
+        eventType: 'service', // Default
+        description: '',
+        startDate: '',
+        endDate: '',
+        startTime: '',
+        endTime: '',
+        location: '',
+        maxCapacity: ''
+    });
 
     useEffect(() => {
         loadEvents();
+        if (location.state?.openAdd) {
+            resetForm();
+            setIsModalOpen(true);
+            window.history.replaceState({}, document.title);
+        }
         // eslint-disable-next-line
-    }, []);
+    }, [location]);
 
     const loadEvents = () => {
         setEvents(getEvents());
@@ -29,6 +51,74 @@ const Events = () => {
             cancelled: '#EF4444'
         };
         return colors[status] || colors.draft;
+    };
+
+    const handleAddEvent = (e) => {
+        e.preventDefault();
+        if (!newEvent.eventName || !newEvent.startDate) {
+            alert('Please fill in required fields');
+            return;
+        }
+
+        if (isEditing) {
+            updateEvent(selectedEventId, newEvent);
+        } else {
+            createEvent(newEvent);
+        }
+
+        setIsModalOpen(false);
+        resetForm();
+        loadEvents();
+    };
+
+    const resetForm = () => {
+        setNewEvent({
+            eventName: '',
+            eventType: 'service',
+            description: '',
+            startDate: '',
+            endDate: '',
+            startTime: '',
+            endTime: '',
+            location: '',
+            maxCapacity: ''
+        });
+        setIsEditing(false);
+        setSelectedEventId(null);
+    };
+
+    const handleEditClick = (event) => {
+        setNewEvent({
+            eventName: event.eventName,
+            eventType: event.eventType,
+            description: event.description || '',
+            startDate: event.startDate ? event.startDate.split('T')[0] : '', // Handle optional date format
+            endDate: event.endDate ? event.endDate.split('T')[0] : '',
+            startTime: event.startTime || '',
+            endTime: event.endTime || '',
+            location: event.location || '',
+            maxCapacity: event.maxCapacity || ''
+        });
+        setSelectedEventId(event.eventId);
+        setIsEditing(true);
+        setIsModalOpen(true);
+    };
+
+    const handleDeleteClick = (eventId) => {
+        if (window.confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
+            deleteEvent(eventId);
+            loadEvents();
+        }
+    };
+
+
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setNewEvent(prev => ({
+            ...prev,
+            [name]: value
+        }));
     };
 
     return (
@@ -54,10 +144,112 @@ const Events = () => {
 
             <div className={styles.container}>
                 <div className={styles.toolbar}>
-                    <GlassButton variant="primary" onClick={() => alert('Add New Event - Feature coming soon!')}>
+                    <GlassButton variant="primary" onClick={() => { resetForm(); setIsModalOpen(true); }}>
                         ➕ Add New Event
                     </GlassButton>
                 </div>
+
+                <Modal
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    title={isEditing ? "Edit Event" : "Add New Event"}
+                >
+                    <form onSubmit={handleAddEvent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <GlassInput
+                            label="Event Name *"
+                            name="eventName"
+                            value={newEvent.eventName}
+                            onChange={handleInputChange}
+                            placeholder="e.g. Weekly Service"
+                        />
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                            <label style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem', paddingLeft: '0.2rem' }}>Event Type</label>
+                            <select
+                                name="eventType"
+                                value={newEvent.eventType}
+                                onChange={handleInputChange}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.8rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    color: 'white',
+                                    fontSize: '1rem',
+                                    outline: 'none',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <option value="service" style={{ color: 'black' }}>Service</option>
+                                <option value="camp" style={{ color: 'black' }}>Camp</option>
+                                <option value="activity" style={{ color: 'black' }}>Activity</option>
+                            </select>
+                        </div>
+
+                        <GlassInput
+                            label="Description"
+                            name="description"
+                            value={newEvent.description}
+                            onChange={handleInputChange}
+                            placeholder="Event details..."
+                        />
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <GlassInput
+                                label="Start Date *"
+                                name="startDate"
+                                type="date"
+                                value={newEvent.startDate}
+                                onChange={handleInputChange}
+                            />
+                            <GlassInput
+                                label="End Date"
+                                name="endDate"
+                                type="date"
+                                value={newEvent.endDate}
+                                onChange={handleInputChange}
+                            />
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <GlassInput
+                                label="Start Time"
+                                name="startTime"
+                                type="time"
+                                value={newEvent.startTime}
+                                onChange={handleInputChange}
+                            />
+                            <GlassInput
+                                label="End Time"
+                                name="endTime"
+                                type="time"
+                                value={newEvent.endTime}
+                                onChange={handleInputChange}
+                            />
+                        </div>
+
+                        <GlassInput
+                            label="Location"
+                            name="location"
+                            value={newEvent.location}
+                            onChange={handleInputChange}
+                            placeholder="e.g. Church Hall"
+                        />
+                        <GlassInput
+                            label="Max Capacity"
+                            name="maxCapacity"
+                            type="number"
+                            value={newEvent.maxCapacity}
+                            onChange={handleInputChange}
+                            placeholder="e.g. 50"
+                        />
+
+                        <GlassButton type="submit" variant="success" fullWidth>
+                            {isEditing ? "Update Event" : "Create Event"}
+                        </GlassButton>
+                    </form>
+                </Modal>
 
                 <div className={styles.grid}>
                     {events.map(event => (
@@ -100,6 +292,18 @@ const Events = () => {
                                     </div>
                                 )}
                             </div>
+
+                            {isAdmin() && (
+                                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
+                                    <GlassButton variant="ghost" size="sm" onClick={() => handleEditClick(event)} style={{ flex: 1, justifyContent: 'center' }}>
+                                        ✏️ Edit
+                                    </GlassButton>
+                                    <GlassButton variant="danger" size="sm" onClick={() => handleDeleteClick(event.eventId)} style={{ flex: 1, justifyContent: 'center' }}>
+                                        🗑️ Delete
+                                    </GlassButton>
+                                </div>
+                            )}
+
                         </GlassCard>
                     ))}
                 </div>
@@ -111,7 +315,7 @@ const Events = () => {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 

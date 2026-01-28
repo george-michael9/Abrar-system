@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getMakhdoumeen, getMakhdoumeenByClass, getClassesByKhadem, getClassById, getClasses, createMakhdoum, updateMakhdoum } from '../services/mockApi';
+import { getMakhdoumeen, getMakhdoumeenByClass, getClassesByKhadem, getClassById, getClasses, createMakhdoum, updateMakhdoum, deleteMakhdoum } from '../services/mockApi';
 import GlassCard from '../components/GlassCard';
 import GlassButton from '../components/GlassButton';
 import GlassInput from '../components/GlassInput';
@@ -10,8 +10,9 @@ import QRCodeDisplay from '../components/QRCodeDisplay';
 import styles from './Makhdoumeen.module.css';
 
 const Makhdoumeen = () => {
-    const { user, isKhadem, logout } = useAuth();
+    const { user, isKhadem, isAdmin, logout } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const [makhdoumeen, setMakhdoumeen] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -21,19 +22,15 @@ const Makhdoumeen = () => {
     const [formData, setFormData] = useState({
         fullName: '',
         dateOfBirth: '',
-        gender: 'Male',
         classId: '',
         motherName: '',
         motherPhone: '',
         fatherName: '',
         fatherPhone: '',
         emergencyContact: '',
-        street: '',
-        city: '',
+        address: '', // Renamed from street
         area: '',
-        postalCode: '',
         diseasesAllergies: '',
-        bloodType: '',
         medications: '',
         specialNeeds: '',
         notes: ''
@@ -42,13 +39,20 @@ const Makhdoumeen = () => {
 
     useEffect(() => {
         loadMakhdoumeen();
-        setAllClasses(getClasses());
+        if (location.state?.openAdd) {
+            handleOpenModal();
+            // Clear state so it doesn't reopen if we navigate back/refresh in a way that keeps state
+            window.history.replaceState({}, document.title);
+        }
         // eslint-disable-next-line
-    }, [user]);
+    }, [user, location]);
 
     const loadMakhdoumeen = () => {
         if (isKhadem()) {
+            // For Khadem, we already filter makhdoumeen in the list, but we also want to filter the class options
             const myClasses = getClassesByKhadem(user.userId);
+            setAllClasses(myClasses);
+
             let allChildren = [];
             myClasses.forEach(cls => {
                 const children = getMakhdoumeenByClass(cls.classId);
@@ -56,6 +60,7 @@ const Makhdoumeen = () => {
             });
             setMakhdoumeen(allChildren);
         } else {
+            setAllClasses(getClasses());
             setMakhdoumeen(getMakhdoumeen());
         }
     };
@@ -71,19 +76,15 @@ const Makhdoumeen = () => {
             setFormData({
                 fullName: makhdoum.fullName || '',
                 dateOfBirth: makhdoum.dateOfBirth || '',
-                gender: makhdoum.gender || 'Male',
                 classId: makhdoum.classId || '',
                 motherName: makhdoum.motherName || '',
                 motherPhone: makhdoum.motherPhone || '',
                 fatherName: makhdoum.fatherName || '',
                 fatherPhone: makhdoum.fatherPhone || '',
                 emergencyContact: makhdoum.emergencyContact || '',
-                street: makhdoum.street || '',
-                city: makhdoum.city || '',
+                address: makhdoum.address || '',
                 area: makhdoum.area || '',
-                postalCode: makhdoum.postalCode || '',
                 diseasesAllergies: makhdoum.diseasesAllergies || '',
-                bloodType: makhdoum.bloodType || '',
                 medications: makhdoum.medications || '',
                 specialNeeds: makhdoum.specialNeeds || '',
                 notes: makhdoum.notes || ''
@@ -93,19 +94,15 @@ const Makhdoumeen = () => {
             setFormData({
                 fullName: '',
                 dateOfBirth: '',
-                gender: 'Male',
                 classId: isKhadem() ? (user.classId || (allClasses.length > 0 ? allClasses[0].classId : '')) : (allClasses.length > 0 ? allClasses[0].classId : ''),
                 motherName: '',
                 motherPhone: '',
                 fatherName: '',
                 fatherPhone: '',
                 emergencyContact: '',
-                street: '',
-                city: '',
+                address: '',
                 area: '',
-                postalCode: '',
                 diseasesAllergies: '',
-                bloodType: '',
                 medications: '',
                 specialNeeds: '',
                 notes: ''
@@ -154,6 +151,15 @@ const Makhdoumeen = () => {
         loadMakhdoumeen();
         handleCloseModal();
     };
+
+    const handleDeleteMakhdoum = (id) => {
+        if (window.confirm('Are you sure you want to delete this child? This action cannot be undone.')) {
+            deleteMakhdoum(id);
+            loadMakhdoumeen();
+        }
+    };
+
+
 
     return (
         <div className={styles.page}>
@@ -207,10 +213,7 @@ const Makhdoumeen = () => {
                                         <span>🎂</span>
                                         {makhdoum.dateOfBirth ? new Date(makhdoum.dateOfBirth).toLocaleDateString() : 'N/A'}
                                     </div>
-                                    <div className={styles.detail}>
-                                        <span>👤</span>
-                                        {makhdoum.gender || 'N/A'}
-                                    </div>
+                                    {/* Gender Removed */}
                                     <div className={styles.detail}>
                                         <span>📚</span>
                                         {classData?.className || 'No Class'}
@@ -245,6 +248,16 @@ const Makhdoumeen = () => {
                                     >
                                         ✏️ Edit
                                     </GlassButton>
+                                    {isAdmin() && (
+                                        <GlassButton
+                                            variant="danger"
+                                            size="sm"
+                                            onClick={() => handleDeleteMakhdoum(makhdoum.makhdoumId)}
+                                            className={styles.actionBtn}
+                                        >
+                                            🗑️
+                                        </GlassButton>
+                                    )}
                                 </div>
                             </GlassCard>
                         );
@@ -268,12 +281,28 @@ const Makhdoumeen = () => {
                 {selectedMakhdoum && (
                     <div className={styles.qrModalContent}>
                         <QRCodeDisplay
+                            id="qr-download-canvas"
                             data={`${selectedMakhdoum.makhdoumCode}:${selectedMakhdoum.makhdoumId}`}
                             size={300}
                         />
                         <div className={styles.qrInfo}>
                             <p className={styles.qrText}>Scan this QR code for attendance and scoring</p>
                             <p className={styles.qrCode}>{selectedMakhdoum.makhdoumCode}</p>
+                            <GlassButton
+                                variant="primary"
+                                onClick={() => {
+                                    const canvas = document.getElementById('qr-download-canvas');
+                                    if (canvas) {
+                                        const link = document.createElement('a');
+                                        link.download = `${selectedMakhdoum.fullName}-${selectedMakhdoum.makhdoumCode}.png`;
+                                        link.href = canvas.toDataURL('image/png');
+                                        link.click();
+                                    }
+                                }}
+                                style={{ marginTop: '1rem' }}
+                            >
+                                📥 Download QR Code
+                            </GlassButton>
                         </div>
                     </div>
                 )}
@@ -301,18 +330,7 @@ const Makhdoumeen = () => {
                             value={formData.dateOfBirth}
                             onChange={handleInputChange}
                         />
-                        <div className={styles.selectWrapper}>
-                            <label className={styles.label}>Gender</label>
-                            <select
-                                name="gender"
-                                value={formData.gender}
-                                onChange={handleInputChange}
-                                className={styles.select}
-                            >
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                            </select>
-                        </div>
+                        {/* Gender Select Removed */}
                         <div className={styles.selectWrapper}>
                             <label className={styles.label}>Class</label>
                             <select
@@ -321,7 +339,7 @@ const Makhdoumeen = () => {
                                 onChange={handleInputChange}
                                 className={styles.select}
                                 required
-                                disabled={isKhadem()}
+                                disabled={isKhadem() && allClasses.length === 1}
                             >
                                 {allClasses.map(cls => (
                                     <option key={cls.classId} value={cls.classId}>
@@ -369,27 +387,15 @@ const Makhdoumeen = () => {
                     <h3 className={styles.sectionTitle}>Address</h3>
                     <div className={styles.formGrid}>
                         <GlassInput
-                            label="Street"
-                            name="street"
-                            value={formData.street}
-                            onChange={handleInputChange}
-                        />
-                        <GlassInput
-                            label="City"
-                            name="city"
-                            value={formData.city}
+                            label="Address"
+                            name="address"
+                            value={formData.address}
                             onChange={handleInputChange}
                         />
                         <GlassInput
                             label="Area"
                             name="area"
                             value={formData.area}
-                            onChange={handleInputChange}
-                        />
-                        <GlassInput
-                            label="Postal Code"
-                            name="postalCode"
-                            value={formData.postalCode}
                             onChange={handleInputChange}
                         />
                     </div>
@@ -402,12 +408,7 @@ const Makhdoumeen = () => {
                             value={formData.diseasesAllergies}
                             onChange={handleInputChange}
                         />
-                        <GlassInput
-                            label="Blood Type"
-                            name="bloodType"
-                            value={formData.bloodType}
-                            onChange={handleInputChange}
-                        />
+                        {/* Blood Type Removed */}
                         <GlassInput
                             label="Medications"
                             name="medications"

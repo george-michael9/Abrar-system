@@ -4,28 +4,46 @@ import { useAuth } from '../context/AuthContext';
 import GlassCard from '../components/GlassCard';
 import GlassButton from '../components/GlassButton';
 import GlassInput from '../components/GlassInput';
-import styles from './Login.module.css';
+import styles from './Login.module.css'; // Reusing Login styles for consistency
 
-const Login = () => {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
+const Register = () => {
+    const [formData, setFormData] = useState({
+        email: '',
+        password: '',
+        confirmPassword: '',
+        fullName: ''
+    });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const { login, googleLogin } = useAuth();
+    const { register, googleLogin } = useAuth();
     const navigate = useNavigate();
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setLoading(true);
 
-        const result = await login(username, password);
+        if (formData.password !== formData.confirmPassword) {
+            setError('Passwords do not match');
+            setLoading(false);
+            return;
+        }
+
+        const result = await register(formData.email, formData.password, formData.fullName);
 
         if (result.success) {
-            navigate('/dashboard');
+            alert('Registration successful! Please wait for admin approval.');
+            navigate('/dashboard'); // Go to dashboard or login
         } else {
             setError(result.error);
-            // Shake animation
             const form = e.target;
             form.classList.add(styles.shake);
             setTimeout(() => form.classList.remove(styles.shake), 500);
@@ -51,15 +69,15 @@ const Login = () => {
                         <span className={styles.logoIcon}>✝️</span>
                     </div>
                     <h1 className={styles.title}>
-                        <span className="text-gradient">Osret Abrar</span>
+                        <span className="text-gradient">Abrar System</span>
                     </h1>
-                    <p className={styles.subtitle}>Management System</p>
+                    <p className={styles.subtitle}>Create New Account</p>
                 </div>
 
                 <GlassCard className={styles.loginCard} padding="lg">
                     <form onSubmit={handleSubmit} className={styles.form}>
-                        <h2 className={styles.formTitle}>Welcome Back</h2>
-                        <p className={styles.formSubtitle}>Sign in to continue to your account</p>
+                        <h2 className={styles.formTitle}>Register</h2>
+                        <p className={styles.formSubtitle}>Enter your details below</p>
 
                         {error && (
                             <div className={styles.errorAlert}>
@@ -69,10 +87,22 @@ const Login = () => {
                         )}
 
                         <GlassInput
+                            label="Full Name"
+                            name="fullName"
+                            type="text"
+                            value={formData.fullName}
+                            onChange={handleChange}
+                            placeholder="John Doe"
+                            required
+                            icon="😊"
+                        />
+
+                        <GlassInput
                             label="Email"
+                            name="email"
                             type="email"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
+                            value={formData.email}
+                            onChange={handleChange}
                             placeholder="Enter your email"
                             required
                             icon="📧"
@@ -81,13 +111,26 @@ const Login = () => {
 
                         <GlassInput
                             label="Password"
+                            name="password"
                             type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Enter your password"
+                            value={formData.password}
+                            onChange={handleChange}
+                            placeholder="Choose a password"
                             required
                             icon="🔒"
-                            autoComplete="current-password"
+                            autoComplete="new-password"
+                        />
+
+                        <GlassInput
+                            label="Confirm Password"
+                            name="confirmPassword"
+                            type="password"
+                            value={formData.confirmPassword}
+                            onChange={handleChange}
+                            placeholder="Confirm your password"
+                            required
+                            icon="🔒"
+                            autoComplete="new-password"
                         />
 
                         <GlassButton
@@ -97,7 +140,7 @@ const Login = () => {
                             fullWidth
                             loading={loading}
                         >
-                            Sign In
+                            Create Account
                         </GlassButton>
 
                         <div style={{ display: 'flex', alignItems: 'center', margin: '1rem 0' }}>
@@ -140,23 +183,19 @@ const Login = () => {
                         </button>
 
                         <div style={{ textAlign: 'center', marginTop: '1rem', color: '#ccc' }}>
-                            Don't have an account?{' '}
+                            Already have an account?{' '}
                             <span
-                                onClick={() => navigate('/register')}
+                                onClick={() => navigate('/login')}
                                 style={{ color: '#4facfe', cursor: 'pointer', fontWeight: 'bold' }}
                             >
-                                Register here
+                                Login here
                             </span>
                         </div>
                     </form>
                 </GlassCard>
-
-                <p className={styles.footer}>
-                    © 2026 Sunday School System. All rights reserved.
-                </p>
             </div>
         </div>
     );
 };
 
-export default Login;
+export default Register;

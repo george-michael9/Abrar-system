@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { getMakhdoumById, getEvents } from '../services/mockApi';
+import { getMakhdoumById, getEvents, addScore } from '../services/mockApi';
 import GlassCard from '../components/GlassCard';
 import GlassButton from '../components/GlassButton';
 import styles from './Scanner.module.css';
@@ -13,7 +13,7 @@ const Scanner = () => {
     const [scanning, setScanning] = useState(false);
     const [scannedData, setScannedData] = useState(null);
     const [makhdoum, setMakhdoum] = useState(null);
-    const [actionType, setActionType] = useState('attendance'); // 'attendance' or 'score'
+    const [actionType, setActionType] = useState('score'); // Default to score, no toggle
     const [score, setScore] = useState('');
     const [events, setEvents] = useState([]);
     const [selectedEvent, setSelectedEvent] = useState('');
@@ -109,12 +109,16 @@ const Scanner = () => {
         }
 
         const scoreRecord = {
-            eventId: selectedEvent,
+            eventId: parseInt(selectedEvent),
             makhdoumId: makhdoum.makhdoumId,
             score: parseInt(score),
             enteredBy: user.userId,
-            enteredAt: new Date().toISOString()
+            // We need to find the team ID for this makhdoum's class
+            // But for now, let's just save the core info. 
+            // The Leaderboard will need to look up the team based on the makhdoum's class -> team mapping.
         };
+
+        addScore(scoreRecord);
 
         console.log('Score Recorded:', scoreRecord);
         alert(`✅ Score ${score} recorded for ${makhdoum.fullName}!`);
@@ -148,20 +152,12 @@ const Scanner = () => {
 
             <div className={styles.container}>
                 {/* Action Type Selection */}
+                {/* Action Type Selection - REMOVED per request */}
+                {/* 
                 <div className={styles.actionSelector}>
-                    <GlassButton
-                        variant={actionType === 'attendance' ? 'primary' : 'ghost'}
-                        onClick={() => setActionType('attendance')}
-                    >
-                        📋 Attendance
-                    </GlassButton>
-                    <GlassButton
-                        variant={actionType === 'score' ? 'primary' : 'ghost'}
-                        onClick={() => setActionType('score')}
-                    >
-                        🏆 Score
-                    </GlassButton>
-                </div>
+                    ...
+                </div> 
+                */}
 
                 {/* Event Selection */}
                 <GlassCard className={styles.eventCard}>
@@ -218,27 +214,7 @@ const Scanner = () => {
                                 </div>
                             </div>
 
-                            {actionType === 'attendance' && (
-                                <div className={styles.actionSection}>
-                                    <p className={styles.actionText}>Record attendance for this child?</p>
-                                    <div className={styles.actionButtons}>
-                                        <GlassButton
-                                            variant="success"
-                                            onClick={handleRecordAttendance}
-                                            fullWidth
-                                        >
-                                            ✅ Record Attendance
-                                        </GlassButton>
-                                        <GlassButton
-                                            variant="ghost"
-                                            onClick={() => { setMakhdoum(null); setScannedData(null); }}
-                                            fullWidth
-                                        >
-                                            ❌ Cancel
-                                        </GlassButton>
-                                    </div>
-                                </div>
-                            )}
+                            {/* Attendance Action Removed */}
 
                             {actionType === 'score' && (
                                 <div className={styles.actionSection}>
@@ -279,7 +255,6 @@ const Scanner = () => {
                     <h3 className={styles.instructionsTitle}>📖 How to Use</h3>
                     <ol className={styles.instructionsList}>
                         <li>Select the event you're recording for</li>
-                        <li>Choose Attendance or Score mode</li>
                         <li>Click "Start Scanning" and point camera at child's QR code</li>
                         <li>Review the child's information</li>
                         <li>Record attendance or enter and submit score</li>

@@ -22,6 +22,9 @@ const initializeStorage = () => {
   if (!localStorage.getItem('events')) {
     localStorage.setItem('events', JSON.stringify(eventsData));
   }
+  if (!localStorage.getItem('scores')) {
+    localStorage.setItem('scores', JSON.stringify([]));
+  }
 };
 
 // Generic get function
@@ -43,6 +46,11 @@ export const login = (username, password) => {
   const user = users.find(u => u.username === username && u.password === password);
 
   if (user) {
+    // Check if user is pending
+    if (user.role === 'Guest' || user.role === 'Pending') {
+      return { error: 'Your account is pending approval by an administrator.' };
+    }
+
     // Update last login
     const updatedUsers = users.map(u =>
       u.userId === user.userId
@@ -56,6 +64,67 @@ export const login = (username, password) => {
     return userWithoutPassword;
   }
   return null;
+};
+
+export const loginWithGoogle = (email, fullName, photoUrl) => {
+  const users = getData('users');
+  let user = users.find(u => u.email === email || (u.username === email)); // Match by email or username
+
+  if (user) {
+    // User exists
+    if (user.role === 'Guest' || user.role === 'Pending') {
+      return { error: 'Your account is pending approval by an administrator.' };
+    }
+
+    // Update user info (e.g. photo)
+    const updatedUsers = users.map(u =>
+      u.userId === user.userId
+        ? { ...u, lastLogin: new Date().toISOString(), photoUrl: photoUrl || u.photoUrl, fullName: fullName || u.fullName }
+        : u
+    );
+    setData('users', updatedUsers);
+
+    const { password: _, ...userWithoutPassword } = user;
+    return userWithoutPassword;
+  } else {
+    // Create new pending user
+    const newUser = {
+      userId: Math.max(...users.map(u => u.userId), 0) + 1,
+      username: email, // Use email as username for google users
+      password: '', // No password
+      fullName: fullName || email.split('@')[0],
+      email: email,
+      photoUrl: photoUrl,
+      role: 'Pending',
+      isActive: true,
+      isGoogle: true,
+      createdAt: new Date().toISOString()
+    };
+    setData('users', [...users, newUser]);
+    return { pending: true, message: 'Account created! Please wait for admin approval.' };
+  }
+};
+
+export const registerUser = (userData) => {
+  const users = getData('users');
+
+  // Check if username already exists
+  if (users.some(u => u.username === userData.username)) {
+    return { success: false, error: 'Username already exists' };
+  }
+
+  const newUser = {
+    userId: Math.max(...users.map(u => u.userId), 0) + 1,
+    username: userData.username,
+    password: userData.password,
+    fullName: userData.fullName,
+    role: 'Pending', // Default role waiting for admin approval
+    isActive: true,
+    createdAt: new Date().toISOString()
+  };
+
+  setData('users', [...users, newUser]);
+  return { success: true, user: newUser };
 };
 
 // User functions
@@ -85,6 +154,13 @@ export const updateUser = (userId, userData) => {
   );
   setData('users', updatedUsers);
   return updatedUsers.find(u => u.userId === userId);
+};
+
+export const deleteUser = (userId) => {
+  const users = getData('users');
+  const updatedUsers = users.filter(u => u.userId !== userId);
+  setData('users', updatedUsers);
+  return true;
 };
 
 // Class functions
@@ -129,6 +205,13 @@ export const updateClass = (classId, classData) => {
   return updatedClasses.find(c => c.classId === classId);
 };
 
+export const deleteClass = (classId) => {
+  const classes = getData('classes');
+  const updatedClasses = classes.filter(c => c.classId !== classId);
+  setData('classes', updatedClasses);
+  return true;
+};
+
 // Makhdoumeen functions
 export const getMakhdoumeen = () => getData('makhdoumeen');
 
@@ -168,6 +251,13 @@ export const updateMakhdoum = (makhdoumId, makhdoumData) => {
   return updatedMakhdoumeen.find(m => m.makhdoumId === makhdoumId);
 };
 
+export const deleteMakhdoum = (makhdoumId) => {
+  const makhdoumeen = getData('makhdoumeen');
+  const updatedMakhdoumeen = makhdoumeen.filter(m => m.makhdoumId !== makhdoumId);
+  setData('makhdoumeen', updatedMakhdoumeen);
+  return true;
+};
+
 // Team functions
 export const getTeams = () => getData('teams');
 
@@ -197,6 +287,47 @@ export const createTeam = (teamData) => {
   return newTeam;
 };
 
+export const updateTeam = (teamId, teamData) => {
+  const teams = getData('teams');
+  const updatedTeams = teams.map(t =>
+    t.teamId === teamId ? { ...t, ...teamData, updatedAt: new Date().toISOString() } : t
+  );
+  setData('teams', updatedTeams);
+  return updatedTeams.find(t => t.teamId === teamId);
+};
+
+export const assignClassToTeam = (teamId, classId) => {
+  const teams = getData('teams');
+  // First remove class from any other team
+  const updatedTeams = teams.map(t => ({
+    ...t,
+    classIds: t.classIds.filter(id => id !== classId)
+  }));
+
+  // Then add to target team
+  const targetTeamIndex = updatedTeams.findIndex(t => t.teamId === teamId);
+  if (targetTeamIndex !== -1) {
+    updatedTeams[targetTeamIndex].classIds.push(classId);
+  }
+
+  setData('teams', updatedTeams);
+  return updatedTeams[targetTeamIndex];
+};
+
+// Score functions
+export const getScores = () => getData('scores');
+
+export const addScore = (scoreData) => {
+  const scores = getData('scores');
+  const newScore = {
+    ...scoreData,
+    scoreId: Math.max(...scores.map(s => s.scoreId), 0) + 1,
+    enteredAt: new Date().toISOString()
+  };
+  setData('scores', [...scores, newScore]);
+  return newScore;
+};
+
 // Event functions
 export const getEvents = () => getData('events');
 
@@ -224,6 +355,13 @@ export const updateEvent = (eventId, eventData) => {
   );
   setData('events', updatedEvents);
   return updatedEvents.find(e => e.eventId === eventId);
+};
+
+export const deleteEvent = (eventId) => {
+  const events = getData('events');
+  const updatedEvents = events.filter(e => e.eventId !== eventId);
+  setData('events', updatedEvents);
+  return true;
 };
 
 // Statistics functions

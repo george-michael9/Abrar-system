@@ -224,3 +224,145 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Leaderboard List Styles */
+.leaderboardList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.leaderboardItem {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 1rem 1.5rem;
+    border-radius: 16px;
+    transition: all 0.2s ease;
+}
+
+.leaderboardItem:hover {
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateX(4px);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.rankBadge {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.9rem;
+    margin-right: 1.2rem;
+    flex-shrink: 0;
+    color: #1f2937;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+.rank1 {
+    background: linear-gradient(135deg, #FFD700, #FDB931);
+    border: 2px solid #FDB931;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+}
+
+.rank2 {
+    background: linear-gradient(135deg, #E0E0E0, #BDBDBD);
+    border: 2px solid #E0E0E0;
+}
+
+.rank3 {
+    background: linear-gradient(135deg, #CD7F32, #A0522D);
+    border: 2px solid #CD7F32;
+}
+
+.rank4 {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ccc;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.teamInfo {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.teamHeader {
+    display: flex;
+    align-items: center;
+}
+
+.teamName {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: white;
+}
+
+.teamClasses {
+    font-size: 0.85rem;
+    color: #9ca3af;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.classTag {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.1rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.75rem;
+    color: #a1a1aa;
+}
+
+.teamScore {
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin-left: 1.5rem;
+    text-align: right;
+    width: 80px;
+    font-variant-numeric: tabular-nums;
+}
+
+.glassSelect {
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 0.5rem 2.5rem 0.5rem 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-lg);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-family: inherit;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    background-size: 1em;
+    transition: all var(--transition-base);
+    min-width: 200px;
+}
+
+.glassSelect:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.05);
+}
+
+.glassSelect:focus {
+    outline: none;
+    border-color: var(--color-primary-cyan);
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.glassSelect option {
+    background: #1A1A2E;
+    color: white;
+    padding: 0.5rem;
+}
