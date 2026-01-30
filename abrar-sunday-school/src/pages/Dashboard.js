@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 import { getStatistics, getClasses, getMakhdoumeen, getEvents, getClassesByKhadem, getMakhdoumeenByClass, getTeams, getScores, updateTeam } from '../services/mockApi';
-import { migrateData } from '../services/migration';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import GlassCard from '../components/GlassCard';
 import GlassButton from '../components/GlassButton';
@@ -27,85 +26,104 @@ const Dashboard = () => {
     const [allClasses, setAllClasses] = useState([]);
     const [editFormData, setEditFormData] = useState({
         teamName: '',
+        motto: '',
         icon: '',
         classIds: []
     });
+
+    // Debug UI State
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [statusMessage, setStatusMessage] = useState('');
 
     useEffect(() => {
         loadData();
     }, [user, leaderboardEventId]);
 
-    const loadData = () => {
-        const statsData = getStatistics();
-        const classesData = getClasses();
-        const makhdoumeenData = getMakhdoumeen();
-        const eventsData = getEvents();
-        const teamData = getTeams();
-        const scoresData = getScores();
+    const loadData = async () => {
+        try {
 
-        setStats(getStatistics());
-        setAllEvents(eventsData.filter(e => e.status !== 'cancelled' && e.status !== 'draft'));
+            const statsData = await getStatistics();
+            const classesData = await getClasses();
+            const makhdoumeenData = await getMakhdoumeen();
+            const eventsData = await getEvents();
+            const teamData = await getTeams();
+            const scoresData = await getScores();
 
-        // Determine which event to show
-        let targetEventId = leaderboardEventId;
-        if (!targetEventId) {
-            const activeEvent = eventsData.find(e => e.status === 'ongoing') || eventsData.find(e => e.status === 'upcoming') || eventsData[0];
-            if (activeEvent) {
-                targetEventId = activeEvent.eventId;
-                // Avoid infinite loop by checking if state needs update
-                if (leaderboardEventId === '') setLeaderboardEventId(activeEvent.eventId);
+
+
+            setStats(statsData);
+            setAllEvents(eventsData.filter(e => e.status !== 'cancelled' && e.status !== 'draft'));
+
+            // Determine which event to show
+            let targetEventId = leaderboardEventId;
+            if (!targetEventId) {
+                const activeEvent = eventsData.find(e => e.status === 'ongoing') || eventsData.find(e => e.status === 'upcoming') || eventsData[0];
+                if (activeEvent) {
+                    targetEventId = activeEvent.eventId;
+                    // Avoid infinite loop by checking if state needs update
+                    if (leaderboardEventId === '') setLeaderboardEventId(activeEvent.eventId);
+                }
             }
-        }
 
-        setUpcomingEvents(eventsData.filter(e => e.status === 'upcoming').slice(0, 3));
+            setUpcomingEvents(eventsData.filter(e => e.status === 'upcoming').slice(0, 3));
 
-        if (targetEventId) {
-            // Calculate scores for this event
-            const scoresMap = {};
-            teamData.forEach(team => {
-                const teamClasses = team.classIds
-                    ? team.classIds.map(id => classesData.find(c => c.classId === id)?.className).filter(Boolean)
-                    : [];
+            if (targetEventId) {
+                // Calculate scores for this event
+                const scoresMap = {};
+                teamData.forEach(team => {
+                    // Start with base team data
+                    scoresMap[team.teamId] = {
+                        ...team,
+                        totalScore: 0,
+                        classNames: []
+                    };
 
-                scoresMap[team.teamId] = {
-                    ...team,
-                    totalScore: 0,
-                    classNames: teamClasses
-                };
-            });
+                    // Resolve class names
+                    if (team.classIds && Array.isArray(team.classIds)) {
+                        scoresMap[team.teamId].classNames = team.classIds
+                            .map(id => classesData.find(c => c.classId === id || c.id === id)?.className)
+                            .filter(Boolean);
+                    }
+                });
 
-            scoresData.forEach(scoreRecord => {
-                // Filter by active event
-                if (parseInt(scoreRecord.eventId) === parseInt(targetEventId)) {
-                    const makhdoum = makhdoumeenData.find(m => m.makhdoumId === scoreRecord.makhdoumId);
-                    if (makhdoum) {
-                        const team = teamData.find(t => t.classIds && t.classIds.includes(makhdoum.classId));
-                        if (team) {
-                            scoresMap[team.teamId].totalScore += scoreRecord.score;
+                scoresData.forEach(scoreRecord => {
+                    // Filter by active event
+                    // Note: Ensure string/number comparison works
+                    if (String(scoreRecord.eventId) === String(targetEventId)) {
+                        const makhdoum = makhdoumeenData.find(m => String(m.makhdoumId) === String(scoreRecord.makhdoumId) || m.id === scoreRecord.makhdoumId);
+                        if (makhdoum) {
+                            const team = teamData.find(t => t.classIds && t.classIds.includes(makhdoum.classId));
+                            if (team) {
+                                scoresMap[team.teamId].totalScore += (Number(scoreRecord.score) || 0);
+                            }
                         }
                     }
+                });
+
+                setLeaderboard(Object.values(scoresMap).sort((a, b) => b.totalScore - a.totalScore));
+            } else {
+                setLeaderboard([]);
+            }
+
+            if (isKhadem() && user?.userId) {
+                // Khadems see their assigned classes only
+                const assignedClasses = await getClassesByKhadem(user.userId);
+
+                // Get children count for each class
+                let totalChildren = 0;
+                for (const cls of assignedClasses) {
+                    const children = await getMakhdoumeenByClass(cls.classId || cls.id);
+                    totalChildren += children.length;
                 }
-            });
 
-            setLeaderboard(Object.values(scoresMap).sort((a, b) => b.totalScore - a.totalScore));
-        } else {
-            setLeaderboard([]);
-        }
-
-        if (isKhadem()) {
-            // Khadems see their assigned classes only
-            const assignedClasses = getClassesByKhadem(user.userId);
-            let totalChildren = 0;
-            assignedClasses.forEach(cls => {
-                const children = getMakhdoumeenByClass(cls.classId);
-                totalChildren += children.length;
-            });
-
-            setStats(prev => ({
-                ...prev,
-                myClasses: assignedClasses.length,
-                myChildren: totalChildren
-            }));
+                setStats(prev => ({
+                    ...prev,
+                    myClasses: assignedClasses.length,
+                    myChildren: totalChildren
+                }));
+            }
+        } catch (error) {
+            console.error("Error loading dashboard data:", error);
         }
     };
 
@@ -136,14 +154,16 @@ const Dashboard = () => {
         </GlassButton>
     );
 
-    const handleEditTeam = (team) => {
+    const handleEditTeam = async (team) => {
         setEditingTeam(team);
         setEditFormData({
             teamName: team.teamName,
+            motto: team.motto || '',
             icon: team.icon,
             classIds: team.classIds || []
         });
-        setAllClasses(getClasses());
+        const classes = await getClasses();
+        setAllClasses(classes);
         setIsEditModalOpen(true);
     };
 
@@ -158,10 +178,10 @@ const Dashboard = () => {
         }
     };
 
-    const handleSaveTeam = (e) => {
+    const handleSaveTeam = async (e) => {
         e.preventDefault();
         if (editingTeam) {
-            updateTeam(editingTeam.teamId, editFormData);
+            await updateTeam(editingTeam.teamId, editFormData);
             setIsEditModalOpen(false);
             setEditingTeam(null);
             loadData(); // Refresh
@@ -281,29 +301,11 @@ const Dashboard = () => {
                                     label="QR Scanner"
                                     onClick={() => navigate('/scanner')}
                                 />
-                                {isAdmin() && (
-                                    <>
-                                        <QuickActionButton
-                                            icon="👥"
-                                            label="Add User"
-                                            onClick={() => navigate('/users', { state: { openAdd: true } })}
-                                        />
-                                        <QuickActionButton
-                                            icon="☁️"
-                                            label="Migrate Data"
-                                            onClick={async () => {
-                                                if (window.confirm('Are you sure you want to migrate all local data to the cloud? This should only be done once.')) {
-                                                    const result = await migrateData();
-                                                    if (result.success) {
-                                                        alert(`Migration Successful! Migrated ${result.count} items.`);
-                                                    } else {
-                                                        alert('Migration Failed: ' + result.error);
-                                                    }
-                                                }
-                                            }}
-                                        />
-                                    </>
-                                )}
+                                <QuickActionButton
+                                    icon="👥"
+                                    label="Add User"
+                                    onClick={() => navigate('/users', { state: { openAdd: true } })}
+                                />
                                 <QuickActionButton
                                     icon="🏆"
                                     label="Leaderboard"
@@ -330,33 +332,6 @@ const Dashboard = () => {
                                     onClick={() => navigate('/scanner')}
                                 />
                             </>
-                        )}
-
-                        {/* Temporary Dev Button for New Users */}
-                        {!isAdmin() && !isAmin() && !isKhadem() && (
-                            <QuickActionButton
-                                icon="👑"
-                                label="Become Admin"
-                                onClick={async () => {
-                                    if (window.confirm('DEV MODE: Make yourself Admin?')) {
-                                        try {
-                                            if (!user || !user.uid) {
-                                                alert("You must be logged in first!");
-                                                return;
-                                            }
-                                            const userRef = doc(db, "users", user.uid);
-                                            await updateDoc(userRef, {
-                                                role: "Admin",
-                                                isActive: true
-                                            });
-                                            alert("Success! refreshing...");
-                                            window.location.reload();
-                                        } catch (e) {
-                                            alert("Error making admin: " + e.message);
-                                        }
-                                    }
-                                }}
-                            />
                         )}
                     </div>
                 </section>
@@ -461,6 +436,11 @@ const Dashboard = () => {
                             value={editFormData.teamName}
                             onChange={(e) => setEditFormData({ ...editFormData, teamName: e.target.value })}
                             required
+                        />
+                        <GlassInput
+                            label="Slogan (Motto)"
+                            value={editFormData.motto}
+                            onChange={(e) => setEditFormData({ ...editFormData, motto: e.target.value })}
                         />
 
                         <div style={{ marginBottom: '1rem' }}>

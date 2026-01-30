@@ -11,7 +11,8 @@ const Register = () => {
         email: '',
         password: '',
         confirmPassword: '',
-        fullName: ''
+        firstName: '',
+        lastName: ''
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -37,7 +38,8 @@ const Register = () => {
             return;
         }
 
-        const result = await register(formData.email, formData.password, formData.fullName);
+        const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+        const result = await register(formData.email, formData.password, fullName);
 
         if (result.success) {
             alert('Registration successful! Please wait for admin approval.');
@@ -66,7 +68,7 @@ const Register = () => {
             <div className={styles.content}>
                 <div className={styles.logoSection}>
                     <div className={styles.logoCircle}>
-                        <span className={styles.logoIcon}>✝️</span>
+                        <img src="/church-logo.png" alt="Logo" style={{ width: '60px', height: '60px', objectFit: 'contain' }} />
                     </div>
                     <h1 className={styles.title}>
                         <span className="text-gradient">Abrar System</span>
@@ -86,16 +88,26 @@ const Register = () => {
                             </div>
                         )}
 
-                        <GlassInput
-                            label="Full Name"
-                            name="fullName"
-                            type="text"
-                            value={formData.fullName}
-                            onChange={handleChange}
-                            placeholder="John Doe"
-                            required
-                            icon="😊"
-                        />
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <GlassInput
+                                label="First Name"
+                                name="firstName"
+                                type="text"
+                                value={formData.firstName}
+                                onChange={handleChange}
+                                required
+                                icon="👤"
+                            />
+                            <GlassInput
+                                label="Last Name"
+                                name="lastName"
+                                type="text"
+                                value={formData.lastName}
+                                onChange={handleChange}
+                                required
+                                icon="👤"
+                            />
+                        </div>
 
                         <GlassInput
                             label="Email"

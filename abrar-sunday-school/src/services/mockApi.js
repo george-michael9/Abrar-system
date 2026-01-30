@@ -1,384 +1,323 @@
-// Mock API service for handling data operations with localStorage persistence
-import usersData from '../data/users.json';
-import teamsData from '../data/teams.json';
-import classesData from '../data/classes.json';
-import makhdoumeenData from '../data/makhdoumeen.json';
-import eventsData from '../data/events.json';
+import {
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  setDoc,
+  query,
+  where
+} from 'firebase/firestore';
+import { db } from './firebase';
 
-// Initialize localStorage with default data if not exists
-const initializeStorage = () => {
-  if (!localStorage.getItem('users')) {
-    localStorage.setItem('users', JSON.stringify(usersData));
-  }
-  if (!localStorage.getItem('teams')) {
-    localStorage.setItem('teams', JSON.stringify(teamsData));
-  }
-  if (!localStorage.getItem('classes')) {
-    localStorage.setItem('classes', JSON.stringify(classesData));
-  }
-  if (!localStorage.getItem('makhdoumeen')) {
-    localStorage.setItem('makhdoumeen', JSON.stringify(makhdoumeenData));
-  }
-  if (!localStorage.getItem('events')) {
-    localStorage.setItem('events', JSON.stringify(eventsData));
-  }
-  if (!localStorage.getItem('scores')) {
-    localStorage.setItem('scores', JSON.stringify([]));
-  }
+// Helper to convert snapshot to array
+const snapshotToArray = (snapshot) => {
+  return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
 };
 
-// Generic get function
-const getData = (key) => {
-  initializeStorage();
-  const data = localStorage.getItem(key);
-  return data ? JSON.parse(data) : [];
+// ============================================
+// User Functions
+// ============================================
+
+export const getUsers = async () => {
+  const querySnapshot = await getDocs(collection(db, 'users'));
+  // Map Firestore docs to our app user structure.
+  // Note: older json had 'userId' (number), firestore has 'uid' (string).
+  // We should normalize this. For now, we return data.
+  return querySnapshot.docs.map(doc => ({ ...doc.data(), userId: doc.id }));
 };
 
-// Generic set function
-const setData = (key, data) => {
-  localStorage.setItem(key, JSON.stringify(data));
-  return data;
+export const getUserById = async (userId) => {
+  const docRef = doc(db, 'users', userId);
+  const docSnap = await getDoc(docRef);
+  return docSnap.exists() ? { ...docSnap.data(), userId: docSnap.id } : null;
 };
 
-// Auth functions
-export const login = (username, password) => {
-  const users = getData('users');
-  const user = users.find(u => u.username === username && u.password === password);
+// Create User is handled by AuthContext (register), but for "Add User" admin button:
+export const createUser = async (userData) => {
+  // Note: Creating a user in 'users' collection WITHOUT Auth account is tricky.
+  // Ideally this should use a cloud function, but for now we just add the doc.
+  // The user won't be able to login until they register with this email.
+  // Or we assume this is just for record keeping.
+  const docRef = await addDoc(collection(db, 'users'), {
+    ...userData,
+    createdAt: new Date().toISOString()
+  });
+  return { ...userData, userId: docRef.id };
+};
 
-  if (user) {
-    // Check if user is pending
-    if (user.role === 'Guest' || user.role === 'Pending') {
-      return { error: 'Your account is pending approval by an administrator.' };
-    }
+export const updateUser = async (userId, userData) => {
+  const userRef = doc(db, 'users', userId);
+  await updateDoc(userRef, {
+    ...userData,
+    updatedAt: new Date().toISOString()
+  });
+  return { ...userData, userId };
+};
 
-    // Update last login
-    const updatedUsers = users.map(u =>
-      u.userId === user.userId
-        ? { ...u, lastLogin: new Date().toISOString() }
-        : u
-    );
-    setData('users', updatedUsers);
+export const deleteUser = async (userId) => {
+  await deleteDoc(doc(db, 'users', userId));
+  return true;
+};
 
-    // Return user without password
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
-  }
+// ============================================
+// Class Functions
+// ============================================
+
+export const getClasses = async () => {
+  const q = collection(db, 'classes');
+  const snapshot = await getDocs(q);
+  return snapshotToArray(snapshot);
+};
+
+export const getClassById = async (classId) => {
+  // If classId is number, we might need to query. If string (docId), direct get.
+  // Migration script used original IDs. Let's assume we query by field if it's legacy ID, 
+  // but better to assuming the ID passed IS the document ID.
+  // For migrated data, document ID might be "1", "2" etc or auto-generated.
+  const docRef = doc(db, 'classes', String(classId));
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) return { ...docSnap.data(), classId: docSnap.id };
+
+  // Fallback: Query by 'classId' field if it was stored as a field
+  const q = query(collection(db, 'classes'), where('classId', '==', classId));
+  const snapshot = await getDocs(q);
+  if (!snapshot.empty) return { ...snapshot.docs[0].data(), id: snapshot.docs[0].id };
   return null;
 };
 
-export const loginWithGoogle = (email, fullName, photoUrl) => {
-  const users = getData('users');
-  let user = users.find(u => u.email === email || (u.username === email)); // Match by email or username
-
-  if (user) {
-    // User exists
-    if (user.role === 'Guest' || user.role === 'Pending') {
-      return { error: 'Your account is pending approval by an administrator.' };
-    }
-
-    // Update user info (e.g. photo)
-    const updatedUsers = users.map(u =>
-      u.userId === user.userId
-        ? { ...u, lastLogin: new Date().toISOString(), photoUrl: photoUrl || u.photoUrl, fullName: fullName || u.fullName }
-        : u
-    );
-    setData('users', updatedUsers);
-
-    const { password: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
-  } else {
-    // Create new pending user
-    const newUser = {
-      userId: Math.max(...users.map(u => u.userId), 0) + 1,
-      username: email, // Use email as username for google users
-      password: '', // No password
-      fullName: fullName || email.split('@')[0],
-      email: email,
-      photoUrl: photoUrl,
-      role: 'Pending',
-      isActive: true,
-      isGoogle: true,
-      createdAt: new Date().toISOString()
-    };
-    setData('users', [...users, newUser]);
-    return { pending: true, message: 'Account created! Please wait for admin approval.' };
-  }
+export const getClassesByKhadem = async (userId) => {
+  // Logic: Look for classes where khadems array contains userId
+  const q = query(collection(db, 'classes'), where('khadems', 'array-contains', userId));
+  const snapshot = await getDocs(q);
+  return snapshotToArray(snapshot);
 };
 
-export const registerUser = (userData) => {
-  const users = getData('users');
-
-  // Check if username already exists
-  if (users.some(u => u.username === userData.username)) {
-    return { success: false, error: 'Username already exists' };
-  }
-
-  const newUser = {
-    userId: Math.max(...users.map(u => u.userId), 0) + 1,
-    username: userData.username,
-    password: userData.password,
-    fullName: userData.fullName,
-    role: 'Pending', // Default role waiting for admin approval
-    isActive: true,
-    createdAt: new Date().toISOString()
-  };
-
-  setData('users', [...users, newUser]);
-  return { success: true, user: newUser };
-};
-
-// User functions
-export const getUsers = () => getData('users');
-
-export const getUserById = (userId) => {
-  const users = getData('users');
-  return users.find(u => u.userId === userId);
-};
-
-export const createUser = (userData) => {
-  const users = getData('users');
-  const newUser = {
-    ...userData,
-    userId: Math.max(...users.map(u => u.userId), 0) + 1,
-    createdAt: new Date().toISOString(),
-    isActive: true
-  };
-  setData('users', [...users, newUser]);
-  return newUser;
-};
-
-export const updateUser = (userId, userData) => {
-  const users = getData('users');
-  const updatedUsers = users.map(u =>
-    u.userId === userId ? { ...u, ...userData, updatedAt: new Date().toISOString() } : u
-  );
-  setData('users', updatedUsers);
-  return updatedUsers.find(u => u.userId === userId);
-};
-
-export const deleteUser = (userId) => {
-  const users = getData('users');
-  const updatedUsers = users.filter(u => u.userId !== userId);
-  setData('users', updatedUsers);
-  return true;
-};
-
-// Class functions
-export const getClasses = () => getData('classes');
-
-export const getClassById = (classId) => {
-  const classes = getData('classes');
-  return classes.find(c => c.classId === classId);
-};
-
-export const getClassesByKhadem = (userId) => {
-  const users = getData('users');
-  const user = users.find(u => u.userId === userId);
-  const classes = getData('classes');
-
-  if (user && user.classId) {
-    return classes.filter(c => c.classId === user.classId);
-  }
-
-  return classes.filter(c => c.khadems && c.khadems.includes(userId));
-};
-
-export const createClass = (classData) => {
-  const classes = getData('classes');
-  const newClass = {
+export const createClass = async (classData) => {
+  const docRef = await addDoc(collection(db, 'classes'), {
     ...classData,
-    classId: Math.max(...classes.map(c => c.classId), 0) + 1,
-    createdAt: new Date().toISOString(),
-    isActive: true,
-    khadems: classData.khadems || []
-  };
-  setData('classes', [...classes, newClass]);
-  return newClass;
-};
-
-export const updateClass = (classId, classData) => {
-  const classes = getData('classes');
-  const updatedClasses = classes.map(c =>
-    c.classId === classId ? { ...c, ...classData, updatedAt: new Date().toISOString() } : c
-  );
-  setData('classes', updatedClasses);
-  return updatedClasses.find(c => c.classId === classId);
-};
-
-export const deleteClass = (classId) => {
-  const classes = getData('classes');
-  const updatedClasses = classes.filter(c => c.classId !== classId);
-  setData('classes', updatedClasses);
-  return true;
-};
-
-// Makhdoumeen functions
-export const getMakhdoumeen = () => getData('makhdoumeen');
-
-export const getMakhdoumById = (makhdoumId) => {
-  const makhdoumeen = getData('makhdoumeen');
-  return makhdoumeen.find(m => m.makhdoumId === makhdoumId);
-};
-
-export const getMakhdoumeenByClass = (classId) => {
-  const makhdoumeen = getData('makhdoumeen');
-  return makhdoumeen.filter(m => m.classId === classId && m.isActive);
-};
-
-export const createMakhdoum = (makhdoumData) => {
-  const makhdoumeen = getData('makhdoumeen');
-  const lastCode = makhdoumeen.length > 0
-    ? Math.max(...makhdoumeen.map(m => parseInt(m.makhdoumCode.split('-')[1])))
-    : 0;
-
-  const newMakhdoum = {
-    ...makhdoumData,
-    makhdoumId: Math.max(...makhdoumeen.map(m => m.makhdoumId), 0) + 1,
-    makhdoumCode: `MKD-${String(lastCode + 1).padStart(6, '0')}`,
     createdAt: new Date().toISOString(),
     isActive: true
-  };
-  setData('makhdoumeen', [...makhdoumeen, newMakhdoum]);
-  return newMakhdoum;
+  });
+  // We also set the 'classId' field to the docId for consistency if needed, 
+  // or just rely on doc ID. Let's rely on doc ID but for compatibility with
+  // int-based code, we might need to be careful.
+  // For now, let's treat doc ID as the source of truth.
+  await updateDoc(docRef, { classId: docRef.id });
+  return { ...classData, classId: docRef.id, id: docRef.id };
 };
 
-export const updateMakhdoum = (makhdoumId, makhdoumData) => {
-  const makhdoumeen = getData('makhdoumeen');
-  const updatedMakhdoumeen = makhdoumeen.map(m =>
-    m.makhdoumId === makhdoumId ? { ...m, ...makhdoumData, updatedAt: new Date().toISOString() } : m
-  );
-  setData('makhdoumeen', updatedMakhdoumeen);
-  return updatedMakhdoumeen.find(m => m.makhdoumId === makhdoumId);
+export const updateClass = async (classId, classData) => {
+  // Assuming classId passed here is the Document ID
+  const classRef = doc(db, 'classes', String(classId));
+  await updateDoc(classRef, {
+    ...classData,
+    updatedAt: new Date().toISOString()
+  });
+  return { ...classData, classId };
 };
 
-export const deleteMakhdoum = (makhdoumId) => {
-  const makhdoumeen = getData('makhdoumeen');
-  const updatedMakhdoumeen = makhdoumeen.filter(m => m.makhdoumId !== makhdoumId);
-  setData('makhdoumeen', updatedMakhdoumeen);
+export const deleteClass = async (classId) => {
+  await deleteDoc(doc(db, 'classes', String(classId)));
   return true;
 };
 
-// Team functions
-export const getTeams = () => getData('teams');
+// ============================================
+// Makhdoumeen Functions
+// ============================================
 
-export const getTeamsByEvent = (eventId) => {
-  const teams = getData('teams');
-  return teams.filter(t => t.eventId === eventId);
+export const getMakhdoumeen = async () => {
+  const snapshot = await getDocs(collection(db, 'makhdoumeen'));
+  return snapshotToArray(snapshot);
 };
 
-export const getTeamById = (teamId) => {
-  const teams = getData('teams');
-  return teams.find(t => t.teamId === teamId);
+export const getMakhdoumeenByClass = async (classId) => {
+  const q = query(collection(db, 'makhdoumeen'), where('classId', '==', classId));
+  const snapshot = await getDocs(q);
+  return snapshotToArray(snapshot);
 };
 
-export const getTeamByClassAndEvent = (classId, eventId) => {
-  const teams = getData('teams');
-  return teams.find(t => t.eventId === eventId && t.classIds && t.classIds.includes(classId));
+export const createMakhdoum = async (data) => {
+  const docRef = await addDoc(collection(db, 'makhdoumeen'), {
+    ...data,
+    createdAt: new Date().toISOString(),
+    isActive: true
+  });
+  await updateDoc(docRef, { makhdoumId: docRef.id });
+  return { ...data, makhdoumId: docRef.id };
 };
 
-export const createTeam = (teamData) => {
-  const teams = getData('teams');
-  const newTeam = {
+export const updateMakhdoum = async (makhdoumId, data) => {
+  const ref = doc(db, 'makhdoumeen', String(makhdoumId));
+  await updateDoc(ref, {
+    ...data,
+    updatedAt: new Date().toISOString()
+  });
+  return { ...data, makhdoumId };
+};
+
+export const deleteMakhdoum = async (makhdoumId) => {
+  await deleteDoc(doc(db, 'makhdoumeen', String(makhdoumId)));
+  return true;
+};
+
+export const getMakhdoumById = async (makhdoumId) => {
+  try {
+    const ref = doc(db, 'makhdoumeen', String(makhdoumId));
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      return { ...snap.data(), makhdoumId: snap.id };
+    }
+    return null;
+  } catch (e) {
+    console.error("Error fetching makhdoum by ID:", e);
+    return null;
+  }
+};
+
+// ============================================
+// Team Functions
+// ============================================
+
+export const getTeams = async () => {
+  const snapshot = await getDocs(collection(db, 'teams'));
+  return snapshotToArray(snapshot);
+};
+
+export const updateTeam = async (teamId, teamData) => {
+  const ref = doc(db, 'teams', String(teamId));
+  await updateDoc(ref, {
     ...teamData,
-    teamId: Math.max(...teams.map(t => t.teamId), 0) + 1,
-    createdAt: new Date().toISOString()
-  };
-  setData('teams', [...teams, newTeam]);
-  return newTeam;
+    updatedAt: new Date().toISOString()
+  });
+  return { ...teamData, teamId };
 };
 
-export const updateTeam = (teamId, teamData) => {
-  const teams = getData('teams');
-  const updatedTeams = teams.map(t =>
-    t.teamId === teamId ? { ...t, ...teamData, updatedAt: new Date().toISOString() } : t
-  );
-  setData('teams', updatedTeams);
-  return updatedTeams.find(t => t.teamId === teamId);
-};
+export const assignClassToTeam = async (teamId, classId) => {
+  // 1. Get all teams to find where the class currently is
+  const allTeams = await getTeams();
 
-export const assignClassToTeam = (teamId, classId) => {
-  const teams = getData('teams');
-  // First remove class from any other team
-  const updatedTeams = teams.map(t => ({
-    ...t,
-    classIds: t.classIds.filter(id => id !== classId)
-  }));
-
-  // Then add to target team
-  const targetTeamIndex = updatedTeams.findIndex(t => t.teamId === teamId);
-  if (targetTeamIndex !== -1) {
-    updatedTeams[targetTeamIndex].classIds.push(classId);
+  // 2. Remove class from any other team
+  const updates = [];
+  for (const team of allTeams) {
+    if (team.classIds && team.classIds.includes(classId)) {
+      // If it's the target team, we might duplicate if we don't check, 
+      // but the logic below expects to add it to target.
+      // If it's ALREADY in target and nowhere else, we're good.
+      // If it's in multiple (shouldn't happen), we remove it.
+      if (String(team.teamId) !== String(teamId)) {
+        const newClassIds = team.classIds.filter(id => id !== classId);
+        updates.push(updateTeam(team.teamId, { classIds: newClassIds }));
+      }
+    }
   }
 
-  setData('teams', updatedTeams);
-  return updatedTeams[targetTeamIndex];
+  // 3. Add to target team
+  const targetTeam = allTeams.find(t => String(t.teamId) === String(teamId));
+  if (targetTeam) {
+    const currentIds = targetTeam.classIds || [];
+    if (!currentIds.includes(classId)) {
+      updates.push(updateTeam(teamId, { classIds: [...currentIds, classId] }));
+    }
+  }
+
+  await Promise.all(updates);
+  return true;
 };
 
-// Score functions
-export const getScores = () => getData('scores');
-
-export const addScore = (scoreData) => {
-  const scores = getData('scores');
-  const newScore = {
-    ...scoreData,
-    scoreId: Math.max(...scores.map(s => s.scoreId), 0) + 1,
-    enteredAt: new Date().toISOString()
-  };
-  setData('scores', [...scores, newScore]);
-  return newScore;
+export const createTeam = async (teamData) => {
+  const docRef = await addDoc(collection(db, 'teams'), {
+    ...teamData,
+    createdAt: new Date().toISOString()
+  });
+  await updateDoc(docRef, { teamId: docRef.id });
+  return { ...teamData, teamId: docRef.id };
 };
 
-// Event functions
-export const getEvents = () => getData('events');
-
-export const getEventById = (eventId) => {
-  const events = getData('events');
-  return events.find(e => e.eventId === eventId);
+export const deleteTeam = async (teamId) => {
+  await deleteDoc(doc(db, 'teams', String(teamId)));
+  return true;
 };
 
-export const createEvent = (eventData) => {
-  const events = getData('events');
-  const newEvent = {
+// ============================================
+// Event Functions
+// ============================================
+
+export const getEvents = async () => {
+  const snapshot = await getDocs(collection(db, 'events'));
+  return snapshotToArray(snapshot);
+};
+
+export const createEvent = async (eventData) => {
+  const docRef = await addDoc(collection(db, 'events'), {
     ...eventData,
-    eventId: Math.max(...events.map(e => e.eventId), 0) + 1,
     createdAt: new Date().toISOString(),
     status: 'upcoming'
-  };
-  setData('events', [...events, newEvent]);
-  return newEvent;
+  });
+  await updateDoc(docRef, { eventId: docRef.id });
+  return { ...eventData, eventId: docRef.id };
 };
 
-export const updateEvent = (eventId, eventData) => {
-  const events = getData('events');
-  const updatedEvents = events.map(e =>
-    e.eventId === eventId ? { ...e, ...eventData, updatedAt: new Date().toISOString() } : e
-  );
-  setData('events', updatedEvents);
-  return updatedEvents.find(e => e.eventId === eventId);
+export const updateEvent = async (eventId, eventData) => {
+  const ref = doc(db, 'events', String(eventId));
+  await updateDoc(ref, {
+    ...eventData,
+    updatedAt: new Date().toISOString()
+  });
+  return { ...eventData, eventId };
 };
 
-export const deleteEvent = (eventId) => {
-  const events = getData('events');
-  const updatedEvents = events.filter(e => e.eventId !== eventId);
-  setData('events', updatedEvents);
+export const deleteEvent = async (eventId) => {
+  await deleteDoc(doc(db, 'events', String(eventId)));
   return true;
 };
 
-// Statistics functions
-export const getStatistics = () => {
-  const users = getData('users');
-  const classes = getData('classes');
-  const makhdoumeen = getData('makhdoumeen');
-  const events = getData('events');
+// ============================================
+// Score Functions
+// ============================================
+
+export const getScores = async () => {
+  const snapshot = await getDocs(collection(db, 'scores'));
+  return snapshotToArray(snapshot);
+};
+
+export const addScore = async (scoreData) => {
+  const docRef = await addDoc(collection(db, 'scores'), {
+    ...scoreData,
+    enteredAt: new Date().toISOString()
+  });
+  return { ...scoreData, scoreId: docRef.id };
+};
+
+// ============================================
+// Statistics (dashboard)
+// ============================================
+
+export const getStatistics = async () => {
+  // In a real app eventually you want to use aggregation queries or counters
+  // but for now, we fetch all and count (standard for smaller apps)
+  const [users, classes, makhdoumeen, events] = await Promise.all([
+    getDocs(collection(db, 'users')),
+    getDocs(collection(db, 'classes')),
+    getDocs(collection(db, 'makhdoumeen')),
+    getDocs(collection(db, 'events'))
+  ]);
+
+  const usersData = snapshotToArray(users);
+  const classesData = snapshotToArray(classes);
+  const makhData = snapshotToArray(makhdoumeen);
+  const eventsData = snapshotToArray(events);
 
   return {
-    totalUsers: users.filter(u => u.isActive).length,
-    totalClasses: classes.filter(c => c.isActive).length,
-    totalMakhdoumeen: makhdoumeen.filter(m => m.isActive).length,
-    totalEvents: events.length,
-    upcomingEvents: events.filter(e => e.status === 'upcoming').length,
-    adminCount: users.filter(u => u.role === 'Admin' && u.isActive).length,
-    aminCount: users.filter(u => u.role === 'Amin' && u.isActive).length,
-    khademCount: users.filter(u => u.role === 'Khadem' && u.isActive).length
+    totalUsers: usersData.filter(u => u.isActive).length,
+    totalClasses: classesData.filter(c => c.isActive).length,
+    totalMakhdoumeen: makhData.filter(m => m.isActive).length,
+    totalEvents: eventsData.length,
+    upcomingEvents: eventsData.filter(e => e.status === 'upcoming').length,
+    adminCount: usersData.filter(u => u.role === 'Admin' && u.isActive).length,
+    aminCount: usersData.filter(u => u.role === 'Amin' && u.isActive).length,
+    khademCount: usersData.filter(u => u.role === 'Khadem' && u.isActive).length
   };
 };

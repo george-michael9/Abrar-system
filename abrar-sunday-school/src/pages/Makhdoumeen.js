@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getMakhdoumeen, getMakhdoumeenByClass, getClassesByKhadem, getClassById, getClasses, createMakhdoum, updateMakhdoum, deleteMakhdoum } from '../services/mockApi';
+import { getMakhdoumeen, getMakhdoumeenByClass, getClassesByKhadem, getClasses, createMakhdoum, updateMakhdoum, deleteMakhdoum } from '../services/mockApi';
 import GlassCard from '../components/GlassCard';
 import GlassButton from '../components/GlassButton';
 import GlassInput from '../components/GlassInput';
@@ -15,6 +16,7 @@ const Makhdoumeen = () => {
     const location = useLocation();
     const [makhdoumeen, setMakhdoumeen] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedClassFilter, setSelectedClassFilter] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isQRModalOpen, setIsQRModalOpen] = useState(false);
     const [selectedMakhdoum, setSelectedMakhdoum] = useState(null);
@@ -47,28 +49,41 @@ const Makhdoumeen = () => {
         // eslint-disable-next-line
     }, [user, location]);
 
-    const loadMakhdoumeen = () => {
-        if (isKhadem()) {
-            // For Khadem, we already filter makhdoumeen in the list, but we also want to filter the class options
-            const myClasses = getClassesByKhadem(user.userId);
-            setAllClasses(myClasses);
+    const loadMakhdoumeen = async () => {
+        try {
+            if (isKhadem() && user?.userId) {
+                // For Khadem, we already filter makhdoumeen in the list, but we also want to filter the class options
+                const myClasses = await getClassesByKhadem(user.userId);
+                setAllClasses(myClasses);
 
-            let allChildren = [];
-            myClasses.forEach(cls => {
-                const children = getMakhdoumeenByClass(cls.classId);
-                allChildren = [...allChildren, ...children];
-            });
-            setMakhdoumeen(allChildren);
-        } else {
-            setAllClasses(getClasses());
-            setMakhdoumeen(getMakhdoumeen());
+                // Use Promise.all to fetch children from all assigned classes
+                const childrenArrays = await Promise.all(
+                    myClasses.map(cls => getMakhdoumeenByClass(cls.classId || cls.id))
+                );
+                // Flatten array
+                const allChildren = childrenArrays.flat();
+                setMakhdoumeen(allChildren);
+            } else {
+                const classesData = await getClasses();
+                setAllClasses(classesData);
+                const childrenData = await getMakhdoumeen();
+                setMakhdoumeen(childrenData);
+            }
+        } catch (error) {
+            console.error("Error loading makhdoumeen:", error);
         }
     };
 
-    const filteredMakhdoumeen = makhdoumeen.filter(m =>
-        m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        m.makhdoumCode.toLowerCase().includes(searchTerm.toLowerCase()
-        ));
+    const filteredMakhdoumeen = makhdoumeen.filter(m => {
+        const matchesSearch = m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (m.makhdoumCode && m.makhdoumCode.toLowerCase().includes(searchTerm.toLowerCase()));
+
+        const matchesClass = selectedClassFilter
+            ? String(m.classId) === String(selectedClassFilter)
+            : true;
+
+        return matchesSearch && matchesClass;
+    });
 
     const handleOpenModal = (makhdoum = null) => {
         if (makhdoum) {
@@ -87,14 +102,14 @@ const Makhdoumeen = () => {
                 diseasesAllergies: makhdoum.diseasesAllergies || '',
                 medications: makhdoum.medications || '',
                 specialNeeds: makhdoum.specialNeeds || '',
-                notes: makhdoum.notes || ''
+                notes: ''
             });
         } else {
             setEditingMakhdoum(null);
             setFormData({
                 fullName: '',
                 dateOfBirth: '',
-                classId: isKhadem() ? (user.classId || (allClasses.length > 0 ? allClasses[0].classId : '')) : (allClasses.length > 0 ? allClasses[0].classId : ''),
+                classId: isKhadem() ? (user?.classId || (allClasses.length > 0 ? allClasses[0].classId : '')) : (allClasses.length > 0 ? allClasses[0].classId : ''),
                 motherName: '',
                 motherPhone: '',
                 fatherName: '',
@@ -131,35 +146,45 @@ const Makhdoumeen = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
+        // Ensure classId is treated consistently (string/number) based on how select provides it
+        // Firestore IDs are strings, but older data might expect numbers? 
+        // Let's keep it as is from the form (usually string) or match target type.
+        // Assuming updateMakhdoum handles it.
         const dataToSave = {
             ...formData,
-            classId: parseInt(formData.classId),
+            classId: formData.classId, // Pass as is (likely string from select)
             category: 'Regular',
             photo: '',
             createdBy: user.userId
         };
 
-        if (editingMakhdoum) {
-            updateMakhdoum(editingMakhdoum.makhdoumId, dataToSave);
-        } else {
-            createMakhdoum(dataToSave);
+        try {
+            if (editingMakhdoum) {
+                await updateMakhdoum(editingMakhdoum.makhdoumId, dataToSave);
+            } else {
+                await createMakhdoum(dataToSave);
+            }
+            // Refresh
+            loadMakhdoumeen();
+            handleCloseModal();
+        } catch (error) {
+            console.error("Error saving makhdoum:", error);
+            alert("Error saving child profile");
         }
-
-        loadMakhdoumeen();
-        handleCloseModal();
     };
 
-    const handleDeleteMakhdoum = (id) => {
+    const handleDeleteMakhdoum = async (id) => {
         if (window.confirm('Are you sure you want to delete this child? This action cannot be undone.')) {
-            deleteMakhdoum(id);
+            await deleteMakhdoum(id);
             loadMakhdoumeen();
         }
     };
 
-
+    // Helper to find class by ID from loaded classes state
+    const findClass = (id) => allClasses.find(c => String(c.classId) === String(id) || c.id === id);
 
     return (
         <div className={styles.page}>
@@ -191,6 +216,19 @@ const Makhdoumeen = () => {
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className={styles.searchInput}
                     />
+                    <select
+                        value={selectedClassFilter}
+                        onChange={(e) => setSelectedClassFilter(e.target.value)}
+                        className={styles.select}
+                        style={{ maxWidth: '200px', marginLeft: '0.5rem' }}
+                    >
+                        <option value="">All Classes</option>
+                        {allClasses.map(cls => (
+                            <option key={cls.classId} value={cls.classId}>
+                                {cls.className}
+                            </option>
+                        ))}
+                    </select>
                     <GlassButton variant="primary" onClick={() => handleOpenModal()}>
                         ➕ Add New Child
                     </GlassButton>
@@ -198,7 +236,7 @@ const Makhdoumeen = () => {
 
                 <div className={styles.grid}>
                     {filteredMakhdoumeen.map(makhdoum => {
-                        const classData = getClassById(makhdoum.classId);
+                        const classData = findClass(makhdoum.classId);
                         return (
                             <GlassCard key={makhdoum.makhdoumId} className={styles.card}>
                                 <div className={styles.cardHeader}>
@@ -276,7 +314,7 @@ const Makhdoumeen = () => {
             <Modal
                 isOpen={isQRModalOpen}
                 onClose={handleCloseQRModal}
-                title={`QR Code - ${selectedMakhdoum?.fullName}`}
+                title={`QR Code - ${selectedMakhdoum?.fullName} `}
             >
                 {selectedMakhdoum && (
                     <div className={styles.qrModalContent}>
@@ -294,7 +332,7 @@ const Makhdoumeen = () => {
                                     const canvas = document.getElementById('qr-download-canvas');
                                     if (canvas) {
                                         const link = document.createElement('a');
-                                        link.download = `${selectedMakhdoum.fullName}-${selectedMakhdoum.makhdoumCode}.png`;
+                                        link.download = `${selectedMakhdoum.fullName} -${selectedMakhdoum.makhdoumCode}.png`;
                                         link.href = canvas.toDataURL('image/png');
                                         link.click();
                                     }
@@ -341,6 +379,7 @@ const Makhdoumeen = () => {
                                 required
                                 disabled={isKhadem() && allClasses.length === 1}
                             >
+                                <option value="">Select Class...</option>
                                 {allClasses.map(cls => (
                                     <option key={cls.classId} value={cls.classId}>
                                         {cls.className}

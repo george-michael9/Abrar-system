@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { getMakhdoumById, getEvents, addScore } from '../services/mockApi';
 import GlassCard from '../components/GlassCard';
 import GlassButton from '../components/GlassButton';
@@ -13,120 +13,181 @@ const Scanner = () => {
     const [scanning, setScanning] = useState(false);
     const [scannedData, setScannedData] = useState(null);
     const [makhdoum, setMakhdoum] = useState(null);
-    const [actionType, setActionType] = useState('score'); // Default to score, no toggle
+    const [actionType, setActionType] = useState('score');
     const [score, setScore] = useState('');
     const [events, setEvents] = useState([]);
     const [selectedEvent, setSelectedEvent] = useState('');
+    const [html5QrCode, setHtml5QrCode] = useState(null);
 
+    // Load events
     useEffect(() => {
-        const allEvents = getEvents();
-        setEvents(allEvents.filter(e => e.status === 'upcoming' || e.status === 'ongoing'));
-        if (allEvents.length > 0) {
-            setSelectedEvent(allEvents[0].eventId);
-        }
+        const loadEvents = async () => {
+            try {
+                const allEvents = await getEvents();
+                const activeEvents = allEvents.filter(e => e.status === 'upcoming' || e.status === 'ongoing');
+                setEvents(activeEvents);
+                if (activeEvents.length > 0) {
+                    setSelectedEvent(activeEvents[0].eventId);
+                }
+            } catch (e) {
+                console.error("Error loading events", e);
+            }
+        };
+        loadEvents();
         // eslint-disable-next-line
     }, []);
 
+    // Cleanup on unmount
     useEffect(() => {
-        if (scanning) {
-            const scanner = new Html5QrcodeScanner('qr-reader', {
-                qrbox: {
-                    width: 250,
-                    height: 250,
-                },
-                fps: 5,
-            });
-
-            scanner.render(success, error);
-
-            function success(result) {
-                scanner.clear();
-                setScanning(false);
-                handleScan(result);
+        return () => {
+            if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.stop().catch(console.error);
             }
+        };
+    }, [html5QrCode]);
 
-            function error(err) {
-                console.warn(err);
-            }
-
-            return () => {
-                scanner.clear().catch(error => {
-                    console.error("Failed to clear scanner", error);
-                });
-            };
+    const startScanning = async () => {
+        // Ensure element exists (it should, because we render it always now)
+        const element = document.getElementById("qr-reader");
+        if (!element) {
+            alert("Error: Scanner element not found. Please reload.");
+            return;
         }
-        // eslint-disable-next-line
-    }, [scanning]);
 
-    const handleScan = (data) => {
+        setScanning(true);
+
+        try {
+            isProcessingRef.current = false; // Reset processing flag
+
+            // If instance exists, reuse it or creating new one if it was cleared?
+            // Safer to create new one or ensure old one is stopped.
+            // But Html5Qrcode throws if we create two on same ID. 
+            // We should check if we have one.
+
+            let qrCode = html5QrCode;
+            if (!qrCode) {
+                qrCode = new Html5Qrcode("qr-reader");
+                setHtml5QrCode(qrCode);
+            }
+
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+            try {
+                await qrCode.start(
+                    { facingMode: "environment" },
+                    config,
+                    onScanSuccess,
+                    onScanFailure
+                );
+            } catch (backCamError) {
+                console.warn("Back camera failed, trying default...", backCamError);
+                await qrCode.start(
+                    { facingMode: "user" },
+                    config,
+                    onScanSuccess,
+                    onScanFailure
+                );
+            }
+
+        } catch (err) {
+            console.error("Error starting scanner:", err);
+            setScanning(false);
+            // If "already started" error, we might just ignore it
+            if (!err.message?.includes("already started")) {
+                alert(`Camera Error: ${err.message || "Could not start camera"}`);
+            }
+        }
+    };
+
+    const stopScanning = async () => {
+        if (html5QrCode) {
+            try {
+                if (html5QrCode.isScanning) {
+                    await html5QrCode.stop();
+                }
+                // We do NOT clear setHtml5QrCode here so we can reuse the instance?
+                // Or we clear it to be safe. Let's clear it to allow fresh start.
+                // Actually properly handling clear() is key.
+                await html5QrCode.clear();
+                setHtml5QrCode(null);
+            } catch (err) {
+                console.error("Error stopping scanner:", err);
+            }
+        }
+        setScanning(false);
+    };
+
+    const isProcessingRef = React.useRef(false);
+
+    const onScanSuccess = (decodedText) => {
+        // Prevent multiple fires
+        if (isProcessingRef.current) return;
+        isProcessingRef.current = true;
+
+        handleScan(decodedText);
+
+        // Stop scanning immediately to prevent loop
+        // We do not wait for handleScan to finish before stopping
+        stopScanning();
+    };
+
+    const onScanFailure = (error) => {
+        // console.warn(error);
+    };
+
+    const handleScan = async (data) => {
         if (data) {
             setScannedData(data);
-            // Extract makhdoumId from QR code data
-            // Format: "MKD-XXXXXX:makhdoumId"
             try {
                 const parts = data.split(':');
                 if (parts.length >= 2) {
-                    const makhdoumId = parseInt(parts[1]);
-                    const child = getMakhdoumById(makhdoumId);
+                    const makhdoumId = parts[1].trim();
+                    const child = await getMakhdoumById(makhdoumId);
                     if (child) {
                         setMakhdoum(child);
                     } else {
                         alert('Child not found!');
+                        // Do NOT reset processing ref here. 
+                        // User must restart scanner manually to try again.
+                        // This prevents infinite loop if they are still holding the code up.
                     }
+                } else {
+                    alert('Invalid QR format');
+                    // Do NOT reset processing ref.
                 }
             } catch (e) {
+                console.error(e);
                 alert('Invalid QR Code!');
+                // Do NOT reset processing ref.
             }
         }
     };
 
-    const handleRecordAttendance = () => {
-        if (!makhdoum || !selectedEvent) {
-            alert('Please select an event');
-            return;
-        }
-
-        // In a real app, this would save to database
-        const attendanceRecord = {
-            eventId: selectedEvent,
-            makhdoumId: makhdoum.makhdoumId,
-            scannedBy: user.userId,
-            scannedAt: new Date().toISOString()
-        };
-
-        console.log('Attendance Recorded:', attendanceRecord);
-        alert(`✅ Attendance recorded for ${makhdoum.fullName}!`);
-
-        // Reset for next scan
-        setMakhdoum(null);
-        setScannedData(null);
-    };
-
-    const handleRecordScore = () => {
+    const handleRecordScore = async () => {
         if (!makhdoum || !selectedEvent || !score) {
             alert('Please enter a score');
             return;
         }
 
         const scoreRecord = {
-            eventId: parseInt(selectedEvent),
+            eventId: selectedEvent,
             makhdoumId: makhdoum.makhdoumId,
             score: parseInt(score),
             enteredBy: user.userId,
-            // We need to find the team ID for this makhdoum's class
-            // But for now, let's just save the core info. 
-            // The Leaderboard will need to look up the team based on the makhdoum's class -> team mapping.
         };
 
-        addScore(scoreRecord);
+        try {
+            await addScore(scoreRecord);
+            alert(`✅ Score ${score} recorded for ${makhdoum.fullName}!`);
 
-        console.log('Score Recorded:', scoreRecord);
-        alert(`✅ Score ${score} recorded for ${makhdoum.fullName}!`);
-
-        // Reset for next scan
-        setMakhdoum(null);
-        setScannedData(null);
-        setScore('');
+            // Reset logic
+            setMakhdoum(null);
+            setScannedData(null);
+            setScore('');
+        } catch (e) {
+            console.error("Error recording score", e);
+            alert("Failed to record score");
+        }
     };
 
     return (
@@ -151,15 +212,6 @@ const Scanner = () => {
             </header>
 
             <div className={styles.container}>
-                {/* Action Type Selection */}
-                {/* Action Type Selection - REMOVED per request */}
-                {/* 
-                <div className={styles.actionSelector}>
-                    ...
-                </div> 
-                */}
-
-                {/* Event Selection */}
                 <GlassCard className={styles.eventCard}>
                     <label className={styles.label}>Select Event:</label>
                     <select
@@ -175,13 +227,13 @@ const Scanner = () => {
                     </select>
                 </GlassCard>
 
-                {/* Scanner Section */}
                 <div className={styles.scannerSection}>
+                    {/* BUTTONS SECTION */}
                     {!scanning && !makhdoum && (
                         <GlassButton
                             variant="primary"
                             size="lg"
-                            onClick={() => setScanning(true)}
+                            onClick={startScanning}
                             className={styles.scanButton}
                         >
                             📷 Start Scanning
@@ -189,17 +241,32 @@ const Scanner = () => {
                     )}
 
                     {scanning && (
-                        <GlassCard className={styles.scanner}>
-                            <div id="qr-reader"></div>
+                        <div style={{ width: '100%', maxWidth: '500px', margin: '0 auto', textAlign: 'center' }}>
                             <GlassButton
                                 variant="danger"
-                                onClick={() => setScanning(false)}
+                                onClick={stopScanning}
                                 className={styles.stopButton}
+                                style={{ marginBottom: '1rem' }}
                             >
                                 ⏹️ Stop Scanner
                             </GlassButton>
-                        </GlassCard>
+                        </div>
                     )}
+
+                    {/* ALWAYS RENDERED SCANNER DIV, HIDDEN IF NOT SCANNING */}
+                    {/* This prevents DOM race conditions */}
+                    <div
+                        style={{
+                            width: '100%',
+                            maxWidth: '500px',
+                            display: scanning ? 'block' : 'none',
+                            margin: '0 auto'
+                        }}
+                    >
+                        <GlassCard className={styles.scanner}>
+                            <div id="qr-reader" style={{ width: '100%' }}></div>
+                        </GlassCard>
+                    </div>
 
                     {/* Scanned Child Info */}
                     {makhdoum && (
@@ -213,8 +280,6 @@ const Scanner = () => {
                                     <p className={styles.childCode}>{makhdoum.makhdoumCode}</p>
                                 </div>
                             </div>
-
-                            {/* Attendance Action Removed */}
 
                             {actionType === 'score' && (
                                 <div className={styles.actionSection}>
@@ -250,7 +315,6 @@ const Scanner = () => {
                     )}
                 </div>
 
-                {/* Instructions */}
                 <GlassCard className={styles.instructions}>
                     <h3 className={styles.instructionsTitle}>📖 How to Use</h3>
                     <ol className={styles.instructionsList}>

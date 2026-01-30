@@ -9,9 +9,9 @@
     border-bottom: 1px solid var(--color-glass-border);
     padding: var(--spacing-xl) 0;
     margin-bottom: var(--spacing-2xl);
-    position: sticky;
-    top: 0;
-    z-index: var(--z-sticky);
+    /* position: sticky; */
+    /* top: 0; */
+    /* z-index: var(--z-sticky); */
 }
 
 .headerContent {
@@ -228,6 +228,11 @@
 .select:focus {
     border-color: var(--color-primary-cyan);
     box-shadow: var(--glow-primary);
+}
+
+.select option {
+    background-color: #1f1f1f;
+    color: #ffffff;
 }
 
 .formActions {

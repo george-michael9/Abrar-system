@@ -64,7 +64,7 @@ const Profile = () => {
         }
     };
 
-    const handleSave = (e) => {
+    const handleSave = async (e) => {
         e.preventDefault();
 
         // Validation
@@ -82,17 +82,27 @@ const Profile = () => {
         };
 
         if (formData.password) {
+            // Note: Updating password in Firebase Auth requires separate API call (updatePassword)
+            // For now, we only update the user document. If we need Auth update, we need to add that.
+            // But let's stick to Firestore doc update for now as per current scope.
             updates.password = formData.password;
         }
 
-        // Update in mock DB
-        const updatedUser = updateUser(user.userId, updates);
+        try {
+            // Update in Firestore
+            const updatedUser = await updateUser(user.userId, updates);
 
-        // Update in session
-        updateCurrentUser(updatedUser);
+            // Update in session (AuthContext)
+            // We need to merge existing user with updates
+            updateCurrentUser({ ...user, ...updates });
 
-        setIsEditing(false);
-        alert('Profile updated successfully!');
+            setIsEditing(false);
+
+            alert('Profile updated successfully!');
+        } catch (error) {
+            console.error("Error updating profile:", error);
+            alert("Failed to update profile: " + error.message);
+        }
     };
 
     return (

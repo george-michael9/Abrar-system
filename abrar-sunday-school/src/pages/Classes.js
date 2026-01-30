@@ -20,7 +20,6 @@ const Classes = () => {
     const [newClass, setNewClass] = useState({
         className: '',
         description: '',
-        ageGroup: '',
         scheduleDay: 'Sunday',
         scheduleTime: '09:00', // Default
         location: ''
@@ -36,19 +35,33 @@ const Classes = () => {
         loadData();
     }, [user]);
 
-    const loadData = () => {
-        setEvents(getEvents());
-        setAllTeams(getTeams());
-        if (isAdmin()) {
-            setClasses(getClasses());
-            // Filter users to get only Khadems
-            const users = getUsers();
-            setAllKhadems(users.filter(u => u.role === 'Khadem'));
-        } else {
-            // Khadem view - only show assigned classes
-            setClasses(getClassesByKhadem(user.userId));
+    const loadData = async () => {
+        try {
+            const eventsData = await getEvents();
+            setEvents(eventsData);
+
+            const teamsData = await getTeams();
+            setAllTeams(teamsData);
+
+            if (isAdmin()) {
+                const classesData = await getClasses();
+                setClasses(classesData);
+
+                // Filter users to get only Khadems
+                const users = await getUsers();
+                setAllKhadems(users.filter(u => u.role === 'Khadem'));
+            } else if (user?.userId) {
+                // Khadem view - only show assigned classes
+
+                const assignedClasses = await getClassesByKhadem(user.userId);
+                setClasses(assignedClasses);
+            }
+
+            const childrenData = await getMakhdoumeen();
+            setAllChildren(childrenData);
+        } catch (error) {
+            console.error("Error loading classes data:", error);
         }
-        setAllChildren(getMakhdoumeen());
     };
 
     useEffect(() => {
@@ -61,37 +74,39 @@ const Classes = () => {
         }
     }, [selectedEventId, allTeams]);
 
-    const handleAssignTeam = (classId, teamId) => {
+    const handleAssignTeam = async (classId, teamId) => {
         if (!isAdmin()) return;
-        assignClassToTeam(parseInt(teamId), classId);
+        await assignClassToTeam(teamId, classId);
         // Refresh data
-        setAllTeams(getTeams());
-        setClasses(getClasses()); // In case class data needs refresh (though relationships are in teams now mainly)
+        const teamsData = await getTeams();
+        setAllTeams(teamsData);
+        const classesData = await getClasses();
+        setClasses(classesData);
     };
 
-    const handleAddClass = (e) => {
+    const handleAddClass = async (e) => {
         e.preventDefault();
-        if (!newClass.className || !newClass.ageGroup) {
+        if (!newClass.className) {
             alert('Please fill in required fields');
             return;
         }
 
-        const createdClass = createClass({
+        const createdClass = await createClass({
             ...newClass,
             category: 'Sunday School', // Default
             khadems: []
         });
 
         // Assign selected children to the new class
-        selectedChildren.forEach(childId => {
-            updateMakhdoum(childId, { classId: createdClass.classId });
-        });
+        // Use Promise.all for parallel updates
+        await Promise.all(selectedChildren.map(childId =>
+            updateMakhdoum(childId, { classId: createdClass.classId })
+        ));
 
         setIsModalOpen(false);
         setNewClass({
             className: '',
             description: '',
-            ageGroup: '',
             scheduleDay: 'Sunday',
             scheduleTime: '09:00',
             location: ''
@@ -102,9 +117,9 @@ const Classes = () => {
         loadData();
     };
 
-    const handleDeleteClass = (classId) => {
+    const handleDeleteClass = async (classId) => {
         if (window.confirm('Are you sure you want to delete this class?')) {
-            deleteClass(classId);
+            await deleteClass(classId);
             loadData();
         }
     };
@@ -115,10 +130,10 @@ const Classes = () => {
         setAssignKhademModalOpen(true);
     };
 
-    const handleSaveKhademAssignment = () => {
+    const handleSaveKhademAssignment = async () => {
         if (!selectedClassForAssignment) return;
 
-        updateClass(selectedClassForAssignment.classId, {
+        await updateClass(selectedClassForAssignment.classId, {
             khadems: selectedKhademsForClass
         });
 
@@ -136,6 +151,9 @@ const Classes = () => {
         }));
     };
 
+    // Helper to find class synchronously from state since we loaded it
+    const findClass = (id) => classes.find(c => String(c.classId) === String(id) || c.id === id);
+
     const TeamGroup = ({ team }) => (
         <section className={styles.teamSection}>
             <div className={styles.teamHeader}>
@@ -149,7 +167,7 @@ const Classes = () => {
             </div>
             <div className={styles.grid}>
                 {team.classIds && team.classIds.map(classId => {
-                    const cls = getClassById(classId);
+                    const cls = findClass(classId);
                     if (!cls) return null;
                     return <ClassCard key={cls.classId} cls={cls} hideAssign={true} />;
                 })}
@@ -166,7 +184,6 @@ const Classes = () => {
             <GlassCard className={styles.card}>
                 <div className={styles.cardHeader}>
                     <div className={styles.icon}>📚</div>
-                    <div className={styles.ageBadge}>{cls.ageGroup}</div>
                 </div>
                 <h3 className={styles.className}>{cls.className}</h3>
                 <p className={styles.description}>{cls.description}</p>
@@ -281,13 +298,7 @@ const Classes = () => {
                             onChange={handleInputChange}
                             placeholder="e.g. Grade 1"
                         />
-                        <GlassInput
-                            label="Age Group *"
-                            name="ageGroup"
-                            value={newClass.ageGroup}
-                            onChange={handleInputChange}
-                            placeholder="e.g. 6-7 years"
-                        />
+
                         <GlassInput
                             label="Description"
                             name="description"
@@ -313,13 +324,16 @@ const Classes = () => {
                                                 type="checkbox"
                                                 id={`child-${child.makhdoumId}`}
                                                 value={child.makhdoumId}
-                                                checked={selectedChildren.includes(child.makhdoumId)}
+                                                checked={selectedChildren.some(id => String(id) === String(child.makhdoumId))}
                                                 onChange={(e) => {
-                                                    const id = parseInt(e.target.value);
+                                                    const id = String(e.target.value);
                                                     if (e.target.checked) {
-                                                        setSelectedChildren([...selectedChildren, id]);
+                                                        // Prevent duplicates
+                                                        if (!selectedChildren.some(existingId => String(existingId) === id)) {
+                                                            setSelectedChildren([...selectedChildren, id]);
+                                                        }
                                                     } else {
-                                                        setSelectedChildren(selectedChildren.filter(cId => cId !== id));
+                                                        setSelectedChildren(selectedChildren.filter(cId => String(cId) !== id));
                                                     }
                                                 }}
                                                 style={{ marginRight: '0.5rem', cursor: 'pointer' }}
@@ -356,7 +370,7 @@ const Classes = () => {
                                 >
                                     <option value="Sunday" style={{ color: 'black' }}>Sunday</option>
                                     <option value="Friday" style={{ color: 'black' }}>Friday</option>
-                                    <option value="Saturday" style={{ color: 'black' }}>Saturday</option>
+
                                 </select>
                             </div>
                             <GlassInput
@@ -403,19 +417,27 @@ const Classes = () => {
                                             type="checkbox"
                                             id={`khadem-${khadem.userId}`}
                                             value={khadem.userId}
-                                            checked={selectedKhademsForClass.includes(khadem.userId)}
+                                            checked={selectedKhademsForClass.some(id => String(id) === String(khadem.userId))}
                                             onChange={(e) => {
-                                                const id = parseInt(e.target.value);
-                                                if (e.target.checked) {
-                                                    setSelectedKhademsForClass([...selectedKhademsForClass, id]);
+                                                const id = String(khadem.userId);
+                                                const isChecked = e.target.checked;
+
+                                                if (isChecked) {
+                                                    // Add if checked
+                                                    setSelectedKhademsForClass(prev => {
+                                                        // Avoid duplicates just in case
+                                                        if (prev.some(kId => String(kId) === id)) return prev;
+                                                        return [...prev, id];
+                                                    });
                                                 } else {
-                                                    setSelectedKhademsForClass(selectedKhademsForClass.filter(kId => kId !== id));
+                                                    // Remove if unchecked
+                                                    setSelectedKhademsForClass(prev => prev.filter(kId => String(kId) !== id));
                                                 }
                                             }}
                                             style={{ marginRight: '0.8rem', cursor: 'pointer', transform: 'scale(1.2)' }}
                                         />
                                         <label htmlFor={`khadem-${khadem.userId}`} style={{ color: 'white', cursor: 'pointer', fontSize: '1rem', flex: 1 }}>
-                                            {khadem.fullName}
+                                            {khadem.fullName} <span style={{ fontSize: '0.7em', color: '#aaa' }}>({khadem.userId})</span>
                                             <div style={{ fontSize: '0.8rem', color: '#ccc' }}>@{khadem.username}</div>
                                         </label>
                                     </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getScores, getTeams, getMakhdoumeen, updateTeam, getClasses, getEvents } from '../services/mockApi';
+import { getScores, getTeams, getMakhdoumeen, updateTeam, createTeam, deleteTeam, getClasses, getEvents } from '../services/mockApi';
 import GlassCard from '../components/GlassCard';
 import GlassButton from '../components/GlassButton';
 import GlassInput from '../components/GlassInput';
@@ -12,6 +12,7 @@ const Leaderboard = () => {
     const { logout, isAdmin } = useAuth();
     const navigate = useNavigate();
     const [teamScores, setTeamScores] = useState([]);
+    const [individualScores, setIndividualScores] = useState([]);
     const [events, setEvents] = useState([]);
     const [selectedEventId, setSelectedEventId] = useState('');
 
@@ -21,27 +22,32 @@ const Leaderboard = () => {
     const [allClasses, setAllClasses] = useState([]);
     const [editFormData, setEditFormData] = useState({
         teamName: '',
+        motto: '',
         icon: '',
         classIds: []
     });
 
     useEffect(() => {
-        const allEvents = getEvents();
-        // Filter for relevant events if needed, for now show all upcoming/ongoing/completed
-        const relevantEvents = allEvents.filter(e => e.status !== 'cancelled' && e.status !== 'draft');
-        setEvents(relevantEvents);
+        const loadInitialData = async () => {
+            const allEvents = await getEvents();
+            // Filter for relevant events if needed, for now show all upcoming/ongoing/completed
+            const relevantEvents = allEvents.filter(e => e.status !== 'cancelled' && e.status !== 'draft');
+            setEvents(relevantEvents);
 
-        if (relevantEvents.length > 0) {
-            // Default to the most recent ongoing or upcoming event, or just the first one
-            const activeEvent = relevantEvents.find(e => e.status === 'ongoing') || relevantEvents.find(e => e.status === 'upcoming') || relevantEvents[0];
-            setSelectedEventId(activeEvent.eventId);
-        }
+            if (relevantEvents.length > 0) {
+                // Default to the most recent ongoing or upcoming event, or just the first one
+                const activeEvent = relevantEvents.find(e => e.status === 'ongoing') || relevantEvents.find(e => e.status === 'upcoming') || relevantEvents[0];
+                setSelectedEventId(activeEvent.eventId);
+            }
+        };
+        loadInitialData();
     }, []);
 
     useEffect(() => {
         if (selectedEventId) {
             calculateScores();
         }
+        // eslint-disable-next-line
     }, [selectedEventId]);
 
     useEffect(() => {
@@ -50,55 +56,107 @@ const Leaderboard = () => {
             const interval = setInterval(calculateScores, 30000);
             return () => clearInterval(interval);
         }
+        // eslint-disable-next-line
     }, [selectedEventId]);
 
-    const calculateScores = () => {
-        const scores = getScores();
-        const teams = getTeams();
-        const makhdoumeen = getMakhdoumeen();
+    const calculateScores = async () => {
+        try {
+            const [scores, teams, makhdoumeen] = await Promise.all([
+                getScores(),
+                getTeams(),
+                getMakhdoumeen()
+            ]);
 
-        // Initialize scores for each team
-        const scoresMap = {};
-        teams.forEach(team => {
-            scoresMap[team.teamId] = {
-                ...team,
-                totalScore: 0
-            };
-        });
+            // Initialize scores for each team
+            const scoresMap = {};
+            teams.forEach(team => {
+                scoresMap[team.teamId] = {
+                    ...team,
+                    totalScore: 0
+                };
+            });
 
-        // Tally up scores
-        // Tally up scores
-        scores.forEach(scoreRecord => {
-            // Filter by selected event
-            if (parseInt(scoreRecord.eventId) !== parseInt(selectedEventId)) {
-                return;
-            }
+            // Tally up scores
+            const individualMap = {};
 
-            const makhdoum = makhdoumeen.find(m => m.makhdoumId === scoreRecord.makhdoumId);
-            if (makhdoum) {
-                // Find team for this makhdoum based on class
-                const team = teams.find(t => t.classIds && t.classIds.includes(makhdoum.classId));
-                if (team) {
-                    scoresMap[team.teamId].totalScore += scoreRecord.score;
+            scores.forEach(scoreRecord => {
+                // Filter by selected event
+                // Ensure ID comparison handles string/number mix
+                if (String(scoreRecord.eventId) !== String(selectedEventId)) {
+                    return;
                 }
-            }
-        });
 
-        // Convert to array and sort
-        const sortedTeams = Object.values(scoresMap).sort((a, b) => b.totalScore - a.totalScore);
-        setTeamScores(sortedTeams);
-        setTeamScores(sortedTeams);
+                const makhdoum = makhdoumeen.find(m => String(m.makhdoumId) === String(scoreRecord.makhdoumId) || m.id === scoreRecord.makhdoumId);
+
+                if (makhdoum) {
+                    // Update Team Score
+                    const team = teams.find(t => t.classIds && t.classIds.includes(makhdoum.classId));
+                    if (team) {
+                        scoresMap[team.teamId].totalScore += (Number(scoreRecord.score) || 0);
+                    }
+
+                    // Update Individual Score
+                    if (!individualMap[makhdoum.makhdoumId]) {
+                        const classData = allClasses.find(c => c.classId === makhdoum.classId || c.id === makhdoum.classId);
+                        individualMap[makhdoum.makhdoumId] = {
+                            ...makhdoum,
+                            className: classData?.className || 'Unknown Class',
+                            totalScore: 0
+                        };
+                    }
+                    individualMap[makhdoum.makhdoumId].totalScore += (Number(scoreRecord.score) || 0);
+                }
+            });
+
+            // Convert and sort Team Scores
+            const sortedTeams = Object.values(scoresMap).sort((a, b) => b.totalScore - a.totalScore);
+            setTeamScores(sortedTeams);
+
+            // Convert and sort Individual Scores
+            const sortedIndividuals = Object.values(individualMap)
+                .sort((a, b) => b.totalScore - a.totalScore)
+                .slice(0, 50); // Show top 50
+            setIndividualScores(sortedIndividuals);
+        } catch (error) {
+            console.error("Error calculating scores:", error);
+        }
     };
 
-    const handleEditTeam = (team) => {
+    const handleEditTeam = async (team) => {
         setEditingTeam(team);
         setEditFormData({
             teamName: team.teamName,
+            motto: team.motto || '',
             icon: team.icon,
             classIds: team.classIds || []
         });
-        setAllClasses(getClasses());
+        const classes = await getClasses();
+        setAllClasses(classes);
         setIsEditModalOpen(true);
+    };
+
+    const handleAddTeam = async () => {
+        setEditingTeam(null);
+        setEditFormData({
+            teamName: '',
+            motto: '',
+            icon: '',
+            classIds: []
+        });
+        const classes = await getClasses();
+        setAllClasses(classes);
+        setIsEditModalOpen(true);
+    };
+
+    const handleDeleteTeam = async (teamId) => {
+        if (window.confirm('Are you sure you want to delete this team?')) {
+            try {
+                await deleteTeam(teamId);
+                calculateScores();
+            } catch (error) {
+                console.error("Error deleting team:", error);
+            }
+        }
     };
 
     const handleImageUpload = (e) => {
@@ -112,13 +170,23 @@ const Leaderboard = () => {
         }
     };
 
-    const handleSaveTeam = (e) => {
+    const handleSaveTeam = async (e) => {
         e.preventDefault();
-        if (editingTeam) {
-            updateTeam(editingTeam.teamId, editFormData);
+        try {
+            if (editingTeam) {
+                await updateTeam(editingTeam.teamId, editFormData);
+            } else {
+                await createTeam({
+                    ...editFormData,
+                    primaryColor: '#' + Math.floor(Math.random() * 16777215).toString(16), // Random color for now
+                    motto: 'New Team' // Default
+                });
+            }
             setIsEditModalOpen(false);
             setEditingTeam(null);
             calculateScores(); // Refresh
+        } catch (error) {
+            console.error("Error saving team:", error);
         }
     };
 
@@ -162,6 +230,11 @@ const Leaderboard = () => {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
+                    {isAdmin() && (
+                        <GlassButton variant="primary" size="sm" onClick={handleAddTeam}>
+                            ➕ Add Team
+                        </GlassButton>
+                    )}
                     <GlassButton variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
                         🏠 Dashboard
                     </GlassButton>
@@ -188,12 +261,22 @@ const Leaderboard = () => {
                             <h2 className={styles.teamName}>
                                 {team.teamName}
                                 {isAdmin() && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); handleEditTeam(team); }}
-                                        style={{ marginLeft: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem' }}
-                                    >
-                                        ✏️
-                                    </button>
+                                    <div style={{ display: 'inline-flex', gap: '0.5rem', marginLeft: '0.5rem' }}>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleEditTeam(team); }}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem' }}
+                                            title="Edit Team"
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteTeam(team.teamId); }}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem' }}
+                                            title="Delete Team"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
                                 )}
                             </h2>
                             <p className={styles.teamMotto}>{team.motto}</p>
@@ -208,11 +291,39 @@ const Leaderboard = () => {
                     </GlassCard>
                 ))}
             </div>
+
+            {/* Individual Leaderboard Section */}
+            {individualScores.length > 0 && (
+                <div style={{ marginTop: '4rem' }}>
+                    <h2 className={styles.sectionTitle} style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                        🌟 Individual Heroes
+                    </h2>
+                    <div className={styles.individualGrid}>
+                        {individualScores.map((child, index) => (
+                            <GlassCard key={child.makhdoumId} className={styles.individualCard}>
+                                <div className={styles.individualRank}>
+                                    #{index + 1}
+                                </div>
+                                <div className={styles.individualAvatar}>
+                                    {child.fullName.charAt(0)}
+                                </div>
+                                <div className={styles.individualInfo}>
+                                    <div className={styles.individualName}>{child.fullName}</div>
+                                    <div className={styles.individualClass}>{child.className}</div>
+                                </div>
+                                <div className={styles.individualScore}>
+                                    {child.totalScore} <span className={styles.ptsLabel}>pts</span>
+                                </div>
+                            </GlassCard>
+                        ))}
+                    </div>
+                </div>
+            )}
             {/* Edit Team Modal */}
             <Modal
                 isOpen={isEditModalOpen}
                 onClose={() => setIsEditModalOpen(false)}
-                title="Edit Team"
+                title={editingTeam ? "Edit Team" : "Add New Team"}
             >
                 <form onSubmit={handleSaveTeam} className={styles.form}>
                     <GlassInput
@@ -220,6 +331,11 @@ const Leaderboard = () => {
                         value={editFormData.teamName}
                         onChange={(e) => setEditFormData({ ...editFormData, teamName: e.target.value })}
                         required
+                    />
+                    <GlassInput
+                        label="Slogan (Motto)"
+                        value={editFormData.motto}
+                        onChange={(e) => setEditFormData({ ...editFormData, motto: e.target.value })}
                     />
 
                     <div style={{ marginBottom: '1rem' }}>

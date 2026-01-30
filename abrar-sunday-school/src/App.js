@@ -8,6 +8,7 @@ import Makhdoumeen from './pages/Makhdoumeen';
 import Classes from './pages/Classes';
 import Events from './pages/Events';
 import Users from './pages/Users';
+import NotFound from './pages/NotFound';
 
 import Scanner from './pages/Scanner';
 import Leaderboard from './pages/Leaderboard';
@@ -113,7 +114,7 @@ function AppRoutes() {
         }
       />
       <Route path="/" element={<Navigate to="/dashboard" />} />
-      <Route path="*" element={<Navigate to="/dashboard" />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

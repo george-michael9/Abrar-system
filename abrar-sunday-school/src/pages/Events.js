@@ -24,8 +24,7 @@ const Events = () => {
         endDate: '',
         startTime: '',
         endTime: '',
-        location: '',
-        maxCapacity: ''
+        location: ''
     });
 
     useEffect(() => {
@@ -38,8 +37,13 @@ const Events = () => {
         // eslint-disable-next-line
     }, [location]);
 
-    const loadEvents = () => {
-        setEvents(getEvents());
+    const loadEvents = async () => {
+        try {
+            const data = await getEvents();
+            setEvents(data);
+        } catch (error) {
+            console.error("Error loading events:", error);
+        }
     };
 
     const getStatusColor = (status) => {
@@ -53,22 +57,27 @@ const Events = () => {
         return colors[status] || colors.draft;
     };
 
-    const handleAddEvent = (e) => {
+    const handleAddEvent = async (e) => {
         e.preventDefault();
         if (!newEvent.eventName || !newEvent.startDate) {
             alert('Please fill in required fields');
             return;
         }
 
-        if (isEditing) {
-            updateEvent(selectedEventId, newEvent);
-        } else {
-            createEvent(newEvent);
-        }
+        try {
+            if (isEditing) {
+                await updateEvent(selectedEventId, newEvent);
+            } else {
+                await createEvent(newEvent);
+            }
 
-        setIsModalOpen(false);
-        resetForm();
-        loadEvents();
+            setIsModalOpen(false);
+            resetForm();
+            loadEvents();
+        } catch (error) {
+            console.error("Error saving event:", error);
+            alert("Failed to save event");
+        }
     };
 
     const resetForm = () => {
@@ -80,8 +89,7 @@ const Events = () => {
             endDate: '',
             startTime: '',
             endTime: '',
-            location: '',
-            maxCapacity: ''
+            location: ''
         });
         setIsEditing(false);
         setSelectedEventId(null);
@@ -96,18 +104,21 @@ const Events = () => {
             endDate: event.endDate ? event.endDate.split('T')[0] : '',
             startTime: event.startTime || '',
             endTime: event.endTime || '',
-            location: event.location || '',
-            maxCapacity: event.maxCapacity || ''
+            location: event.location || ''
         });
         setSelectedEventId(event.eventId);
         setIsEditing(true);
         setIsModalOpen(true);
     };
 
-    const handleDeleteClick = (eventId) => {
+    const handleDeleteClick = async (eventId) => {
         if (window.confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
-            deleteEvent(eventId);
-            loadEvents();
+            try {
+                await deleteEvent(eventId);
+                loadEvents();
+            } catch (error) {
+                console.error("Error deleting event:", error);
+            }
         }
     };
 
@@ -236,14 +247,7 @@ const Events = () => {
                             onChange={handleInputChange}
                             placeholder="e.g. Church Hall"
                         />
-                        <GlassInput
-                            label="Max Capacity"
-                            name="maxCapacity"
-                            type="number"
-                            value={newEvent.maxCapacity}
-                            onChange={handleInputChange}
-                            placeholder="e.g. 50"
-                        />
+
 
                         <GlassButton type="submit" variant="success" fullWidth>
                             {isEditing ? "Update Event" : "Create Event"}
@@ -285,12 +289,7 @@ const Events = () => {
                                     <span>📍</span>
                                     <span>{event.location}</span>
                                 </div>
-                                {event.maxCapacity && (
-                                    <div className={styles.detail}>
-                                        <span>👥</span>
-                                        <span>Max Capacity: {event.maxCapacity}</span>
-                                    </div>
-                                )}
+
                             </div>
 
                             {isAdmin() && (

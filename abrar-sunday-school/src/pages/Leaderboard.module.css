@@ -144,8 +144,76 @@
   background-color: rgba(0, 0, 0, 0.4);
 }
 
-.glassSelect option {
-  background: #1A1A2E;
+
+/* Individual Leaderboard Styles */
+.individualGrid {
+  display: grid;
+  gap: 1rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.individualCard {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  gap: 1rem;
+  transition: transform 0.2s ease;
+  background: rgba(255, 255, 255, 0.03);
+  /* Slightly more transparent */
+}
+
+.individualCard:hover {
+  transform: translateX(5px);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.individualRank {
+  font-size: 1.2rem;
+  font-weight: 700;
+  width: 2.5rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.individualAvatar {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-primary-cyan), var(--color-secondary-purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
   color: white;
-  padding: 0.8rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.individualInfo {
+  flex: 1;
+}
+
+.individualName {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.1rem;
+}
+
+.individualClass {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.individualScore {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-primary-cyan);
+}
+
+.ptsLabel {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-left: 2px;
 }

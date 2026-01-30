@@ -9,9 +9,10 @@ import styles from './Login.module.css';
 const Login = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [rememberMe, setRememberMe] = useState(true);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const { login, googleLogin } = useAuth();
+    const { login, googleLogin, resetPassword } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -19,11 +20,15 @@ const Login = () => {
         setError('');
         setLoading(true);
 
-        const result = await login(username, password);
+
+        const result = await login(username, password, rememberMe);
+
 
         if (result.success) {
+
             navigate('/dashboard');
         } else {
+            console.error('Login failed:', result.error);
             setError(result.error);
             // Shake animation
             const form = e.target;
@@ -31,6 +36,22 @@ const Login = () => {
             setTimeout(() => form.classList.remove(styles.shake), 500);
         }
         setLoading(false);
+    };
+
+    const handleResetPassword = async () => {
+        const email = window.prompt("Please enter your email address to reset your password:");
+        if (email) {
+            if (!/\S+@\S+\.\S+/.test(email)) {
+                alert("Please enter a valid email address.");
+                return;
+            }
+            const result = await resetPassword(email);
+            if (result.success) {
+                alert("Password reset email sent! Check your inbox.");
+            } else {
+                alert("Error: " + result.error);
+            }
+        }
     };
 
     return (
@@ -48,7 +69,7 @@ const Login = () => {
             <div className={styles.content}>
                 <div className={styles.logoSection}>
                     <div className={styles.logoCircle}>
-                        <span className={styles.logoIcon}>✝️</span>
+                        <img src="/church-logo.png" alt="Logo" style={{ width: '60px', height: '60px', objectFit: 'contain' }} />
                     </div>
                     <h1 className={styles.title}>
                         <span className="text-gradient">Osret Abrar</span>
@@ -89,6 +110,25 @@ const Login = () => {
                             icon="🔒"
                             autoComplete="current-password"
                         />
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'white' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={rememberMe}
+                                    onChange={(e) => setRememberMe(e.target.checked)}
+                                    style={{ cursor: 'pointer' }}
+                                />
+                                <span style={{ fontSize: '0.9rem' }}>Stay logged in</span>
+                            </label>
+
+                            <span
+                                onClick={handleResetPassword}
+                                style={{ color: '#ccc', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }}
+                            >
+                                Forgot Password?
+                            </span>
+                        </div>
 
                         <GlassButton
                             type="submit"

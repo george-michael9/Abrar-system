@@ -6,7 +6,11 @@ import {
     signOut,
     onAuthStateChanged,
     GoogleAuthProvider,
-    signInWithPopup
+    signInWithPopup,
+    sendPasswordResetEmail,
+    setPersistence,
+    browserLocalPersistence,
+    browserSessionPersistence
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -25,34 +29,49 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            if (firebaseUser) {
-                // Fetch additional user data from Firestore
-                const userDocRef = doc(db, 'users', firebaseUser.uid);
-                const userDoc = await getDoc(userDocRef);
 
-                if (userDoc.exists()) {
-                    setUser({ ...userDoc.data(), uid: firebaseUser.uid, email: firebaseUser.email });
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+
+            try {
+                if (firebaseUser) {
+                    // Fetch additional user data from Firestore
+                    const userDocRef = doc(db, 'users', firebaseUser.uid);
+
+                    const userDoc = await getDoc(userDocRef);
+
+                    if (userDoc.exists()) {
+
+                        setUser({ ...userDoc.data(), userId: firebaseUser.uid, uid: firebaseUser.uid, email: firebaseUser.email });
+                    } else {
+
+                        // Fallback if user document doesn't exist yet (e.g. just registered)
+                        setUser({
+                            userId: firebaseUser.uid,
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            displayName: firebaseUser.displayName,
+                            role: 'Guest' // Default role until approved/assigned
+                        });
+                    }
                 } else {
-                    // Fallback if user document doesn't exist yet (e.g. just registered)
-                    setUser({
-                        uid: firebaseUser.uid,
-                        email: firebaseUser.email,
-                        displayName: firebaseUser.displayName,
-                        role: 'Guest' // Default role until approved/assigned
-                    });
+                    setUser(null);
                 }
-            } else {
+            } catch (error) {
+                console.error('AuthProvider Error:', error);
+                // Even on error, we should probably allow the user to see *something* (or maybe logout)
                 setUser(null);
+            } finally {
+
+                setLoading(false);
             }
-            setLoading(false);
         });
 
         return unsubscribe;
     }, []);
 
-    const login = async (email, password) => {
+    const login = async (email, password, rememberMe = true) => {
         try {
+            await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
             await signInWithEmailAndPassword(auth, email, password);
             return { success: true };
         } catch (error) {
@@ -128,13 +147,23 @@ export const AuthProvider = ({ children }) => {
     const isAmin = () => user?.role === 'Amin';
     const isKhadem = () => user?.role === 'Khadem';
 
+    const resetPassword = async (email) => {
+        try {
+            await sendPasswordResetEmail(auth, email);
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    };
+
     const value = {
         user,
         login,
         googleLogin,
-        register, // Add register to context
+        register,
+        resetPassword,
         logout,
-        updateCurrentUser, // Keep for compatibility for now
+        updateCurrentUser,
         isAuthenticated: !!user,
         isAdmin,
         isAmin,

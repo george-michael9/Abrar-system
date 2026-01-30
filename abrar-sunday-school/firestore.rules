@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAdmin() {
+      // Check if the user document exists and has role 'Admin'
+      // Note: This requires the user document ID to match the Auth UID.
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+    
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    // USERS collection
+    match /users/{userId} {
+      // Users can read their own profile. Admins can read all.
+      allow read: if isAuthed() && (request.auth.uid == userId || isAdmin());
+      
+      // Creating a profile permitted during registration (if ID matches)
+      allow create: if request.auth.uid == userId;
+      
+      // Updates permitted by Owner (e.g. profile) or Admin
+      allow update: if isAuthed() && (request.auth.uid == userId || isAdmin());
+      
+      // Delete only by Admin
+      allow delete: if isAdmin();
+    }
+
+    // CLASSES collection
+    match /classes/{classId} {
+      allow read: if isAuthed();
+      allow write: if isAdmin();
+    }
+
+    // MAKHDLUMEEN collection (Children)
+    match /makhdoumeen/{childId} {
+      allow read: if isAuthed();
+      // Khadems need to add/update children
+      allow create, update: if isAuthed();
+      // Deletion restricted to Admins
+      allow delete: if isAdmin();
+    }
+
+    // EVENTS collection
+    match /events/{eventId} {
+      allow read: if isAuthed();
+      allow write: if isAdmin();
+    }
+
+    // TEAMS collection
+    match /teams/{teamId} {
+      allow read: if isAuthed();
+      allow write: if isAdmin();
+    }
+
+    // SCORES collection
+    match /scores/{scoreId} {
+      allow read: if isAuthed();
+      // Khadems can add scores
+      allow create: if isAuthed();
+      // Modification of scores restricted to Admin
+      allow update, delete: if isAdmin();
+    }
+  }
+}

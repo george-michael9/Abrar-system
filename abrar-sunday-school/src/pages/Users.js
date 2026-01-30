@@ -9,12 +9,13 @@ import Modal from '../components/Modal';
 import styles from './Users.module.css';
 
 const Users = () => {
-    const { logout, isAdmin } = useAuth();
+    const { user: currentUser, logout, isAdmin, loading } = useAuth(); // Destructure loading
     const navigate = useNavigate();
     const location = useLocation();
     const [users, setUsers] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [newUser, setNewUser] = useState({
+    const [editingUser, setEditingUser] = useState(null);
+    const [formData, setFormData] = useState({
         username: '',
         password: '',
         fullName: '',
@@ -26,6 +27,7 @@ const Users = () => {
     const [pendingRole, setPendingRole] = useState({}); // Map userId -> selectedRole
 
     useEffect(() => {
+        if (loading) return; // Wait for auth to load
         // Check if user is admin
         if (!isAdmin()) {
             navigate('/dashboard');
@@ -37,11 +39,18 @@ const Users = () => {
             window.history.replaceState({}, document.title);
         }
         // eslint-disable-next-line
-    }, [location]);
+    }, [location, currentUser, loading]); // Added loading to dependency
 
-    const loadUsers = () => {
-        setUsers(getUsers());
+    const loadUsers = async () => {
+        try {
+            const data = await getUsers();
+            setUsers(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error("Error loading users:", error);
+        }
     };
+
+    if (loading) return <div style={{ color: 'white', padding: '2rem' }}>Loading...</div>;
 
     const getRoleColor = (role) => {
         const colors = {
@@ -53,46 +62,98 @@ const Users = () => {
         return colors[role] || '#6B7280';
     };
 
-    const handleAddUser = (e) => {
+    const handleOpenModal = (user = null) => {
+        if (user) {
+            setEditingUser(user);
+            setFormData({
+                username: user.username || '',
+                password: '', // Leave blank unless changing
+                fullName: user.fullName || '',
+                role: user.role || 'Khadem',
+                email: user.email || '',
+                phone: user.phone || ''
+            });
+        } else {
+            setEditingUser(null);
+            setFormData({
+                username: '',
+                password: '',
+                fullName: '',
+                role: 'Khadem',
+                email: '',
+                phone: ''
+            });
+        }
+        setIsModalOpen(true);
+    };
+
+    const handleSaveUser = async (e) => {
         e.preventDefault();
-        if (!newUser.username || !newUser.password || !newUser.fullName) {
+
+
+
+        // Validation
+        if (!formData.username || !formData.fullName) {
             alert('Please fill in required fields');
             return;
         }
+        if (!editingUser && !formData.password) {
+            alert('Password is required for new users');
+            return;
+        }
 
-        createUser(newUser);
-        setIsModalOpen(false);
-        setNewUser({
-            username: '',
-            password: '',
-            fullName: '',
-            role: 'Khadem',
-            email: '',
-            phone: ''
-        });
-        loadUsers();
-        alert('User created successfully!');
+        try {
+            if (editingUser) {
+                // Update
+                const updates = { ...formData };
+                if (!updates.password) delete updates.password; // Don't overwrite if blank
+
+                await updateUser(editingUser.userId, updates);
+                alert('User updated successfully!');
+            } else {
+                // Create
+                await createUser(formData);
+                alert('User created successfully!');
+            }
+
+            setIsModalOpen(false);
+            setEditingUser(null);
+            loadUsers();
+        } catch (error) {
+            console.error("Error saving user:", error);
+            alert("Failed to save user: " + error.message);
+        }
     };
+
+
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setNewUser(prev => ({
+        setFormData(prev => ({
             ...prev,
             [name]: value
         }));
     };
 
-    const handleApprove = (userId) => {
-        const role = pendingRole[userId] || 'Khadem'; // Default to Khadem if not selected
-        updateUser(userId, { role });
-        loadUsers();
-        alert(`User approved as ${role}!`);
+    const handleApprove = async (userId) => {
+        try {
+            const role = pendingRole[userId] || 'Khadem'; // Default to Khadem if not selected
+            await updateUser(userId, { role });
+            loadUsers();
+            alert(`User approved as ${role}!`);
+        } catch (error) {
+            console.error("Error approving user:", error);
+        }
     };
 
-    const handleReject = (userId) => {
+    const handleReject = async (userId) => {
         if (window.confirm('Are you sure you want to reject and delete this request?')) {
-            deleteUser(userId);
-            loadUsers();
+            try {
+                await deleteUser(userId);
+                loadUsers();
+            } catch (error) {
+                console.error("Error rejecting user:", error);
+            }
         }
     };
 
@@ -122,7 +183,7 @@ const Users = () => {
 
             <div className={styles.container}>
                 <div className={styles.toolbar}>
-                    <GlassButton variant="primary" onClick={() => setIsModalOpen(true)}>
+                    <GlassButton variant="primary" onClick={() => handleOpenModal()}>
                         ➕ Add New User
                     </GlassButton>
                 </div>
@@ -137,8 +198,12 @@ const Users = () => {
                             {pendingUsers.map(user => (
                                 <GlassCard key={user.userId} className={styles.card} style={{ borderColor: 'rgba(245, 158, 11, 0.3)' }}>
                                     <div className={styles.cardHeader}>
-                                        <div className={styles.avatar} style={{ background: '#F59E0B' }}>
-                                            {user.fullName.charAt(0)}
+                                        <div className={styles.avatar} style={{ background: user.photoUrl ? 'transparent' : '#F59E0B', overflow: 'hidden' }}>
+                                            {user.photoUrl ? (
+                                                <img src={user.photoUrl} alt={user.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            ) : (
+                                                (user.fullName || '?').charAt(0)
+                                            )}
                                         </div>
                                         <div
                                             className={styles.roleBadge}
@@ -206,8 +271,12 @@ const Users = () => {
                     {activeUsers.map(user => (
                         <GlassCard key={user.userId} className={styles.card}>
                             <div className={styles.cardHeader}>
-                                <div className={styles.avatar}>
-                                    {user.fullName.charAt(0)}
+                                <div className={styles.avatar} style={{ background: user.photoUrl ? 'transparent' : undefined, overflow: 'hidden' }}>
+                                    {user.photoUrl ? (
+                                        <img src={user.photoUrl} alt={user.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : (
+                                        (user.fullName || '?').charAt(0)
+                                    )}
                                 </div>
                                 <div
                                     className={styles.roleBadge}
@@ -240,8 +309,11 @@ const Users = () => {
                                     <span>✅</span>
                                     <span>{user.isActive ? 'Active' : 'Inactive'}</span>
                                 </div>
-                                {user.role !== 'Admin' && (
-                                    <div style={{ marginTop: '0.5rem' }}>
+                                {currentUser.userId !== user.userId && (
+                                    <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
+                                        <GlassButton variant="ghost" size="sm" onClick={() => handleOpenModal(user)}>
+                                            ✏️ Edit
+                                        </GlassButton>
                                         <GlassButton variant="danger" size="sm" onClick={() => handleReject(user.userId)}>
                                             Delete
                                         </GlassButton>
@@ -255,28 +327,28 @@ const Users = () => {
                 <Modal
                     isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
-                    title="Add New User"
+                    title={editingUser ? "Edit User" : "Add New User"}
                 >
-                    <form onSubmit={handleAddUser} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <form onSubmit={handleSaveUser} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <GlassInput
                             label="Username *"
                             name="username"
-                            value={newUser.username}
+                            value={formData.username}
                             onChange={handleInputChange}
                             placeholder="Enter username"
                         />
                         <GlassInput
-                            label="Password *"
+                            label={editingUser ? "Password (leave blank to keep current)" : "Password *"}
                             name="password"
                             type="password"
-                            value={newUser.password}
+                            value={formData.password}
                             onChange={handleInputChange}
                             placeholder="Enter password"
                         />
                         <GlassInput
                             label="Full Name *"
                             name="fullName"
-                            value={newUser.fullName}
+                            value={formData.fullName}
                             onChange={handleInputChange}
                             placeholder="Enter full name"
                         />
@@ -285,23 +357,13 @@ const Users = () => {
                             <label style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem', paddingLeft: '0.2rem' }}>Role</label>
                             <select
                                 name="role"
-                                value={newUser.role}
+                                value={formData.role}
                                 onChange={handleInputChange}
-                                style={{
-                                    width: '100%',
-                                    padding: '0.8rem',
-                                    borderRadius: '12px',
-                                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                                    background: 'rgba(255, 255, 255, 0.05)',
-                                    color: 'white',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    cursor: 'pointer'
-                                }}
+                                className={styles.glassSelect}
                             >
-                                <option value="Khadem" style={{ color: 'black' }}>Khadem</option>
-                                {/* <option value="Amin" style={{ color: 'black' }}>Amin</option> Disabled for now */}
-                                <option value="Admin" style={{ color: 'black' }}>Admin</option>
+                                <option value="Khadem">Khadem</option>
+                                {/* <option value="Amin">Amin</option> Disabled for now */}
+                                <option value="Admin">Admin</option>
                             </select>
                         </div>
 
@@ -309,20 +371,20 @@ const Users = () => {
                             label="Email"
                             name="email"
                             type="email"
-                            value={newUser.email}
+                            value={formData.email}
                             onChange={handleInputChange}
                             placeholder="Enter email (optional)"
                         />
                         <GlassInput
                             label="Phone"
                             name="phone"
-                            value={newUser.phone}
+                            value={formData.phone}
                             onChange={handleInputChange}
                             placeholder="Enter phone (optional)"
                         />
 
                         <GlassButton type="submit" variant="success" fullWidth>
-                            Create User
+                            {editingUser ? "Update User" : "Create User"}
                         </GlassButton>
                     </form>
                 </Modal>

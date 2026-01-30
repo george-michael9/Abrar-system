@@ -9,9 +9,9 @@
     border-bottom: 1px solid var(--color-glass-border);
     padding: var(--spacing-xl) 0;
     margin-bottom: var(--spacing-2xl);
-    position: sticky;
-    top: 0;
-    z-index: var(--z-sticky);
+    /* position: sticky; */
+    /* top: 0; */
+    /* z-index: var(--z-sticky); */
 }
 
 .headerContent {
@@ -130,4 +130,43 @@
     .grid {
         grid-template-columns: 1fr;
     }
+
+}
+
+
+.glassSelect {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    padding: 0.8rem 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-lg);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+    font-family: inherit;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1.2em;
+    transition: all var(--transition-base);
+    outline: none;
+}
+
+.glassSelect:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.glassSelect:focus {
+    border-color: var(--color-primary-cyan);
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.glassSelect option {
+    background: #1A1A2E;
+    color: white;
+    padding: 0.8rem;
 }
